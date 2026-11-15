@@ -57,5 +57,67 @@ footer{color:#778ba3;font-size:11px;text-align:center;margin:22px 0}
 </div>
 <div class="status" id="status">Dashboard created. Live data connection not yet configured.</div>
 <footer>Personal energy dashboard</footer>
+
+<script>
+const FOX_WORKER = "https://energy-api.gerbenbouma.workers.dev/";
+
+async function loadEnergyData() {
+  const status = document.getElementById("status");
+  let password = sessionStorage.getItem("energyPassword");
+
+  if (!password) {
+    password = prompt("Enter your energy dashboard password");
+    if (!password) {
+      status.textContent = "Password required to connect.";
+      return;
+    }
+    sessionStorage.setItem("energyPassword", password);
+  }
+
+  status.textContent = "Connecting to Fox ESS...";
+
+  try {
+    const response = await fetch(FOX_WORKER, {
+      headers: {
+        "X-Dashboard-Password": password
+      }
+    });
+
+    if (response.status === 401) {
+      sessionStorage.removeItem("energyPassword");
+      status.textContent = "Incorrect password. Refresh to try again.";
+      return;
+    }
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(JSON.stringify(data));
+    }
+
+    status.textContent = "Fox ESS connected. Raw readings received.";
+
+    let output = document.getElementById("foxData");
+    if (!output) {
+      output = document.createElement("pre");
+      output.id = "foxData";
+      output.style.cssText =
+        "white-space:pre-wrap;overflow-wrap:anywhere;" +
+        "background:#1b2b40;padding:14px;border-radius:12px;" +
+        "font-size:11px;color:#c9d8e8;margin-top:14px";
+      document.getElementById("status").after(output);
+    }
+
+    output.textContent = JSON.stringify(data, null, 2);
+
+  } catch (error) {
+    status.textContent = "Connection error: " + error.message;
+  }
+}
+
+loadEnergyData();
+setInterval(loadEnergyData, 300000);
+</script>
+
 </body>
 </html>
