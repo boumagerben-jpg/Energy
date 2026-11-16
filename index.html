@@ -7,20 +7,27 @@
 <title>Home Energy Dashboard</title>
 <style>
 *{box-sizing:border-box}
-body{margin:0;background:#101b2b;color:#f4f7fb;font-family:-apple-system,BlinkMacSystemFont,sans-serif;padding:20px}
-header{padding:12px 2px 22px}
-h1{font-size:27px;margin:0 0 6px}
-.sub{color:#9eafc3;font-size:13px}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.card{background:#1b2b40;border:1px solid #30445c;border-radius:17px;padding:17px;min-height:125px}
-.card.wide{grid-column:span 2}
-.label{font-size:13px;color:#aebed0;margin-bottom:13px}
-.value{font-size:29px;font-weight:700;letter-spacing:-1px}
-.unit{font-size:14px;color:#aebed0;font-weight:400}
-.note{font-size:12px;color:#9eafc3;margin-top:9px}
+body{margin:0;background:#101b2b;color:#f4f7fb;font-family:-apple-system,BlinkMacSystemFont,sans-serif;padding:16px}
+header{padding:12px 2px 20px}h1{font-size:27px;margin:0 0 6px}.sub{color:#9eafc3;font-size:13px}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.card{background:#1b2b40;border:1px solid #30445c;border-radius:16px;padding:12px 10px;min-height:116px;min-width:0}
+.card.wide{grid-column:1/-1}.label{font-size:12px;color:#aebed0;margin-bottom:12px;line-height:1.25}
+.value{font-size:clamp(19px,5.4vw,27px);font-weight:700;letter-spacing:-.8px;white-space:nowrap}
+.unit{font-size:12px;color:#aebed0;font-weight:400}.note{font-size:11px;color:#9eafc3;margin-top:9px;line-height:1.3}
+.battery-card{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:130px;padding:17px 19px;transition:border-color .2s}
+.battery-card.charging{border-color:#27bd78}.battery-card.discharging{border-color:#398de8}
+.battery-info{min-width:0}.battery-info .label{font-size:14px;margin-bottom:12px}
+.battery-state{font-size:13px;font-weight:600;margin-top:7px}
+.battery-card.charging .battery-state{color:#35d48b}.battery-card.discharging .battery-state{color:#65aaff}
+.battery-visual{display:flex;align-items:center;gap:11px;flex-shrink:0}
+.battery-shell{position:relative;width:42px;height:72px;border:3px solid #aebed0;border-radius:7px;padding:4px;display:flex;align-items:flex-end;overflow:visible}
+.battery-shell:before{content:"";position:absolute;width:17px;height:5px;background:#aebed0;border-radius:3px 3px 0 0;top:-8px;left:10px}
+.battery-fill{width:100%;height:0%;background:#8ba2bb;border-radius:2px;transition:height .3s,background .3s}
+.battery-card.charging .battery-fill{background:#27bd78}.battery-card.discharging .battery-fill{background:#398de8}
+.battery-percent{font-size:22px;font-weight:700;min-width:54px;text-align:right}
 .status{margin-top:18px;background:#1b2b40;border-radius:14px;padding:15px;color:#aebed0;font-size:13px}
 footer{color:#778ba3;font-size:11px;text-align:center;margin:22px 0}
-@media(min-width:600px){body{max-width:650px;margin:auto}}
+@media(min-width:600px){body{max-width:650px;margin:auto}.card{padding:17px}.value{font-size:29px}}
 </style>
 </head>
 <body>
@@ -29,31 +36,14 @@ footer{color:#778ba3;font-size:11px;text-align:center;margin:22px 0}
 <div class="sub">Fox ESS KH7 · 2 × EP12 · Hypervolt 2</div>
 </header>
 <div class="grid">
-<div class="card">
-<div class="label">☀️ Solar generation</div>
-<div class="value" id="solar">— <span class="unit">kW</span></div>
-<div class="note">Live output</div>
+<div class="card"><div class="label">☀️ Solar</div><div class="value" id="solar">— <span class="unit">kW</span></div><div class="note">Generation</div></div>
+<div class="card"><div class="label">🏠 Home</div><div class="value" id="home">— <span class="unit">kW</span></div><div class="note">Consumption</div></div>
+<div class="card"><div class="label">⚡ Grid</div><div class="value" id="grid">— <span class="unit">kW</span></div><div class="note" id="gridnote">Import / export</div></div>
+<div class="card wide battery-card" id="batterycard">
+<div class="battery-info"><div class="label">🔋 Battery</div><div class="value" id="battery">— <span class="unit">kW</span></div><div class="battery-state" id="batterystate">Standby</div></div>
+<div class="battery-visual"><div class="battery-shell" aria-label="Battery charge level"><div class="battery-fill" id="batteryfill"></div></div><div class="battery-percent" id="soc">—%</div></div>
 </div>
-<div class="card">
-<div class="label">🏠 Home consumption</div>
-<div class="value" id="home">— <span class="unit">kW</span></div>
-<div class="note">Household power</div>
-</div>
-<div class="card">
-<div class="label">🔋 Battery power</div>
-<div class="value" id="battery">— <span class="unit">kW</span></div>
-<div class="note" id="soc">State of charge: —</div>
-</div>
-<div class="card">
-<div class="label">⚡ Grid power</div>
-<div class="value" id="grid">— <span class="unit">kW</span></div>
-<div class="note">Import / export</div>
-</div>
-<div class="card wide">
-<div class="label">🚗 Hypervolt EV charging</div>
-<div class="value" id="ev">— <span class="unit">kW</span></div>
-<div class="note" id="evstatus">Charger status: awaiting connection</div>
-</div>
+<div class="card wide"><div class="label">🚗 EV charging · Hypervolt</div><div class="value" id="ev">— <span class="unit">kW</span></div><div class="note" id="evstatus">Charger status: awaiting connection</div></div>
 </div>
 <div class="status" id="status">Dashboard created. Live data connection not yet configured.</div>
 <footer>Personal energy dashboard</footer>
@@ -120,19 +110,24 @@ async function loadEnergyData() {
     document.getElementById("grid").innerHTML =
       kw(Math.max(gridImport, gridExport)) + ' <span class="unit">kW</span>';
 
+    const batteryCharging = charge > 0.01;
+    const batteryDischarging = discharge > 0.01;
+    const batteryPower = batteryCharging ? charge : batteryDischarging ? discharge : 0;
+    const batteryState = batteryCharging ? "Charging" : batteryDischarging ? "Discharging" : "Standby";
+    const batteryCard = document.getElementById("batterycard");
+
     document.getElementById("battery").innerHTML =
-      kw(Math.max(charge, discharge)) + ' <span class="unit">kW</span>';
+      kw(batteryPower) + ' <span class="unit">kW</span>';
+    document.getElementById("batterystate").textContent = batteryState;
+    document.getElementById("soc").textContent = Math.max(0, Math.min(100, soc)) + "%";
+    document.getElementById("batteryfill").style.height =
+      Math.max(0, Math.min(100, soc)) + "%";
+    batteryCard.classList.toggle("charging", batteryCharging);
+    batteryCard.classList.toggle("discharging", !batteryCharging && batteryDischarging);
 
-    document.getElementById("soc").textContent =
-      "State of charge: " + soc + "%";
-
-    document.getElementById("battery").nextElementSibling.textContent =
-      charge > 0.01 ? "Charging" :
-      discharge > 0.01 ? "Discharging" : "Standby";
-
-    document.getElementById("grid").nextElementSibling.textContent =
-      gridImport > 0.01 ? "Importing from grid" :
-      gridExport > 0.01 ? "Exporting to grid" : "No significant grid flow";
+    document.getElementById("gridnote").textContent =
+      gridImport > 0.01 ? "Importing" :
+      gridExport > 0.01 ? "Exporting" : "No grid flow";
 
     try {
       const evResponse = await fetch(HYPERVOLT_WORKER, {
