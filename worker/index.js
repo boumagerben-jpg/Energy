@@ -1,155 +1,175 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#101b2b">
-<title>Home Energy Dashboard</title>
-<style>
-*{box-sizing:border-box}
-body{margin:0;background:#101b2b;color:#f4f7fb;font-family:-apple-system,BlinkMacSystemFont,sans-serif;padding:20px}
-header{padding:12px 2px 22px}
-h1{font-size:27px;margin:0 0 6px}
-.sub{color:#9eafc3;font-size:13px}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.card{background:#1b2b40;border:1px solid #30445c;border-radius:17px;padding:17px;min-height:125px}
-.card.wide{grid-column:span 2}
-.label{font-size:13px;color:#aebed0;margin-bottom:13px}
-.value{font-size:29px;font-weight:700;letter-spacing:-1px}
-.unit{font-size:14px;color:#aebed0;font-weight:400}
-.note{font-size:12px;color:#9eafc3;margin-top:9px}
-.status{margin-top:18px;background:#1b2b40;border-radius:14px;padding:15px;color:#aebed0;font-size:13px}
-footer{color:#778ba3;font-size:11px;text-align:center;margin:22px 0}
-@media(min-width:600px){body{max-width:650px;margin:auto}}
-</style>
-</head>
-<body>
-<header>
-<h1>Home Energy</h1>
-<div class="sub">Fox ESS KH7 · 2 × EP12 · Hypervolt 2</div>
-</header>
-<div class="grid">
-<div class="card">
-<div class="label">☀️ Solar generation</div>
-<div class="value" id="solar">— <span class="unit">kW</span></div>
-<div class="note">Live output</div>
-</div>
-<div class="card">
-<div class="label">🏠 Home consumption</div>
-<div class="value" id="home">— <span class="unit">kW</span></div>
-<div class="note">Household power</div>
-</div>
-<div class="card">
-<div class="label">🔋 Battery power</div>
-<div class="value" id="battery">— <span class="unit">kW</span></div>
-<div class="note" id="soc">State of charge: —</div>
-</div>
-<div class="card">
-<div class="label">⚡ Grid power</div>
-<div class="value" id="grid">— <span class="unit">kW</span></div>
-<div class="note">Import / export</div>
-</div>
-<div class="card wide">
-<div class="label">🚗 Hypervolt EV charging</div>
-<div class="value" id="ev">— <span class="unit">kW</span></div>
-<div class="note" id="evstatus">Charger status: awaiting connection</div>
-</div>
-</div>
-<div class="status" id="status">Dashboard created. Live data connection not yet configured.</div>
-<footer>Personal energy dashboard</footer>
+/**
+ * Fox ESS read-only API proxy for the Home Energy dashboard.
+ * Secrets required in Cloudflare:
+ * FOX_API_KEY, FOX_DEVICE_SN, DASHBOARD_PASSWORD
+ */
 
-<script>
-const FOX_WORKER = "https://energy-api.gerbenbouma.workers.dev/";
+let cachedData = null;
+let cachedAt = 0;
 
-function kw(value) {
-  return Number(value || 0).toFixed(2);
-}
+function md5(input) {
+  const bytes = new TextEncoder().encode(input);
+  const length = bytes.length;
+  const paddedLength = Math.ceil((length + 9) / 64) * 64;
+  const data = new Uint8Array(paddedLength);
+  data.set(bytes);
+  data[length] = 0x80;
 
-async function loadEnergyData() {
-  const status = document.getElementById("status");
-  let password = sessionStorage.getItem("energyPassword");
+  const bitLength = length * 8;
+  const view = new DataView(data.buffer);
+  view.setUint32(paddedLength - 8, bitLength >>> 0, true);
+  view.setUint32(paddedLength - 4, Math.floor(bitLength / 4294967296), true);
 
-  if (!password) {
-    password = prompt("Enter your energy dashboard password");
-    if (!password) {
-      status.textContent = "Password required.";
-      return;
-    }
-    sessionStorage.setItem("energyPassword", password);
-  }
+  let a0 = 0x67452301;
+  let b0 = 0xefcdab89;
+  let c0 = 0x98badcfe;
+  let d0 = 0x10325476;
 
-  status.textContent = "Updating Fox ESS readings...";
+  const shifts = [
+    7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
+    5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20,
+    4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
+    6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21
+  ];
 
-  try {
-    const response = await fetch(FOX_WORKER, {
-      headers: { "X-Dashboard-Password": password }
-    });
+  const k = Array.from({ length: 64 }, (_, i) =>
+    Math.floor(Math.abs(Math.sin(i + 1)) * 4294967296) >>> 0
+  );
 
-    if (response.status === 401) {
-      sessionStorage.removeItem("energyPassword");
-      status.textContent = "Password incorrect. Refresh to try again.";
-      return;
+  for (let offset = 0; offset < paddedLength; offset += 64) {
+    const m = Array.from({ length: 16 }, (_, i) =>
+      view.getUint32(offset + i * 4, true)
+    );
+    let a = a0, b = b0, c = c0, d = d0;
+
+    for (let i = 0; i < 64; i++) {
+      let f, g;
+      if (i < 16) {
+        f = (b & c) | (~b & d);
+        g = i;
+      } else if (i < 32) {
+        f = (d & b) | (~d & c);
+        g = (5 * i + 1) % 16;
+      } else if (i < 48) {
+        f = b ^ c ^ d;
+        g = (3 * i + 5) % 16;
+      } else {
+        f = c ^ (b | ~d);
+        g = (7 * i) % 16;
+      }
+
+      const sum = (a + f + k[i] + m[g]) | 0;
+      const rotated = (sum << shifts[i]) | (sum >>> (32 - shifts[i]));
+      const next = (b + rotated) | 0;
+      a = d;
+      d = c;
+      c = b;
+      b = next;
     }
 
-    const data = await response.json();
-
-    if (!response.ok) throw new Error(JSON.stringify(data));
-
-    const readings = data.result[0].datas;
-    const values = {};
-
-    readings.forEach(item => {
-      values[item.variable] = item.value;
-    });
-
-    const solar = Number(values.pvPower || 0);
-    const home = Number(values.loadsPower || 0);
-    const charge = Number(values.batChargePower || 0);
-    const discharge = Number(values.batDischargePower || 0);
-    const soc = Number(values.SoC || 0);
-    const gridImport = Number(values.gridConsumptionPower || 0);
-    const gridExport = Number(values.feedinPower || 0);
-
-    document.getElementById("solar").innerHTML =
-      kw(solar) + ' <span class="unit">kW</span>';
-
-    document.getElementById("home").innerHTML =
-      kw(home) + ' <span class="unit">kW</span>';
-
-    document.getElementById("grid").innerHTML =
-      kw(Math.max(gridImport, gridExport)) + ' <span class="unit">kW</span>';
-
-    document.getElementById("battery").innerHTML =
-      kw(Math.max(charge, discharge)) + ' <span class="unit">kW</span>';
-
-    document.getElementById("soc").textContent =
-      "State of charge: " + soc + "%";
-
-    document.getElementById("battery").nextElementSibling.textContent =
-      charge > 0.01 ? "Charging" :
-      discharge > 0.01 ? "Discharging" : "Standby";
-
-    document.getElementById("grid").nextElementSibling.textContent =
-      gridImport > 0.01 ? "Importing from grid" :
-      gridExport > 0.01 ? "Exporting to grid" : "No significant grid flow";
-
-    document.getElementById("evstatus").textContent =
-      "Hypervolt connection to be added";
-
-    const oldRaw = document.getElementById("foxData");
-    if (oldRaw) oldRaw.remove();
-
-    status.textContent =
-      "Fox ESS connected · Updated " + data.result[0].time;
-
-  } catch (error) {
-    status.textContent = "Update failed: " + error.message;
+    a0 = (a0 + a) | 0;
+    b0 = (b0 + b) | 0;
+    c0 = (c0 + c) | 0;
+    d0 = (d0 + d) | 0;
   }
+
+  return [a0, b0, c0, d0].map(n =>
+    [0, 8, 16, 24]
+      .map(s => ((n >>> s) & 255).toString(16).padStart(2, "0"))
+      .join("")
+  ).join("");
 }
 
-loadEnergyData();
-setInterval(loadEnergyData, 300000);
-</script>
+export default {
+  async fetch(request, env) {
+    const origin = request.headers.get("Origin") || "";
+    const allowed = /^https:\/\/[a-zA-Z0-9-]+\.github\.io$/.test(origin);
 
-</body>
-</html>
+    const cors = {
+      "Access-Control-Allow-Origin": allowed ? origin : "null",
+      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Headers": "X-Dashboard-Password",
+      "Vary": "Origin"
+    };
+
+    if (request.method === "OPTIONS") {
+      return new Response(null, { headers: cors });
+    }
+
+    if (request.method !== "GET") {
+      return new Response("Method not allowed", { status: 405, headers: cors });
+    }
+
+    if (!allowed) {
+      return new Response("Origin not allowed", { status: 403, headers: cors });
+    }
+
+    if (!env.FOX_API_KEY || !env.FOX_DEVICE_SN || !env.DASHBOARD_PASSWORD) {
+      return new Response("Worker secrets are missing", { status: 500, headers: cors });
+    }
+
+    if (request.headers.get("X-Dashboard-Password") !== env.DASHBOARD_PASSWORD) {
+      return new Response("Incorrect dashboard password", { status: 401, headers: cors });
+    }
+
+    if (cachedData && Date.now() - cachedAt < 300000) {
+      return new Response(JSON.stringify(cachedData), {
+        headers: {
+          ...cors,
+          "Content-Type": "application/json",
+          "Cache-Control": "no-store"
+        }
+      });
+    }
+
+    const path = "/op/v1/device/real/query";
+    const timestamp = Date.now().toString();
+    const signature = md5(path + "\r\n" + env.FOX_API_KEY + "\r\n" + timestamp);
+
+    try {
+      const foxResponse = await fetch("https://www.foxesscloud.com" + path, {
+        method: "POST",
+        headers: {
+          "token": env.FOX_API_KEY,
+          "timestamp": timestamp,
+          "signature": signature,
+          "lang": "en",
+          "Content-Type": "application/json",
+          "User-Agent": "Mozilla/5.0"
+        },
+        body: JSON.stringify({ sns: [env.FOX_DEVICE_SN] })
+      });
+
+      const result = await foxResponse.json();
+
+      if (!foxResponse.ok || result.errno !== 0) {
+        return new Response(JSON.stringify({
+          error: "Fox ESS API error",
+          details: result
+        }), {
+          status: 502,
+          headers: { ...cors, "Content-Type": "application/json" }
+        });
+      }
+
+      cachedData = result;
+      cachedAt = Date.now();
+
+      return new Response(JSON.stringify(result), {
+        headers: {
+          ...cors,
+          "Content-Type": "application/json",
+          "Cache-Control": "no-store"
+        }
+      });
+    } catch (error) {
+      return new Response(JSON.stringify({
+        error: "Connection failed",
+        details: error.message
+      }), {
+        status: 502,
+        headers: { ...cors, "Content-Type": "application/json" }
+      });
+    }
+  }
+};
