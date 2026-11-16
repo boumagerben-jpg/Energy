@@ -31,9 +31,13 @@ header{padding:12px 2px 24px}h1{font-size:27px;margin:0 0 6px}.sub{color:#9eafc3
 .battery-percent{position:absolute;z-index:2;left:0;right:0;bottom:4px;text-align:center;font-size:clamp(8px,1.8vw,10px);font-weight:800;color:#fff;text-shadow:0 1px 3px #07111f,0 0 3px #07111f}
 .flow-lines{position:absolute;inset:0;width:100%;height:100%;z-index:0;overflow:visible;pointer-events:none}
 .flow-lines path{fill:none;stroke:#64748b;stroke-width:1.1;stroke-dasharray:2.1 2.1;stroke-linecap:round;opacity:.8}
-.flow-lines path.active{opacity:1;animation:dash-flow 1.5s linear infinite}
+.flow-lines path.active{opacity:1;animation:dash-flow 3s linear infinite}
 .flow-lines path.green{stroke:#27d889}.flow-lines path.blue{stroke:#4c9cff}.flow-lines path.red{stroke:#ff5964}
 .flow-lines path.reverse{animation-name:dash-flow-reverse}
+#solarcard.flow-green,#evcard.flow-blue,#gridcard.flow-red,#gridcard.flow-green,#batterycard.flow-green,#batterycard.flow-blue{border-color:var(--flow-colour)}
+#solarcard.flow-green,#evcard.flow-blue,#gridcard.flow-red,#gridcard.flow-green,#batterycard.flow-green,#batterycard.flow-blue{--flow-colour:#27d889}
+#evcard.flow-blue,#batterycard.flow-blue{--flow-colour:#4c9cff}
+#gridcard.flow-red{--flow-colour:#ff5964}
 @keyframes dash-flow{to{stroke-dashoffset:-8.4}}
 @keyframes dash-flow-reverse{to{stroke-dashoffset:8.4}}
 .status{margin-top:20px;background:#1b2b40;border-radius:14px;padding:15px;color:#aebed0;font-size:13px}
@@ -49,10 +53,10 @@ footer{color:#778ba3;font-size:11px;text-align:center;margin:22px 0}
 </header>
 <div class="energy-map" aria-label="Live home energy flow">
 <svg class="flow-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-  <path id="solarflow" d="M16.25 16.25 L30.5 38.3"/>
-  <path id="evflow" d="M83.75 16.25 L69.5 38.3"/>
-  <path id="gridflow" d="M16.25 83.75 L30.5 61.7"/>
-  <path id="batteryflow" d="M83.75 83.75 L69.5 61.7"/>
+  <path id="solarflow" d="M16.25 35.75 H23.375 V38.3 H30.5"/>
+  <path id="evflow" d="M83.75 35.75 H76.625 V38.3 H69.5"/>
+  <path id="gridflow" d="M16.25 64.25 H23.375 V61.7 H30.5"/>
+  <path id="batteryflow" d="M83.75 64.25 H76.625 V61.7 H69.5"/>
 </svg>
 <div class="energy-grid">
   <div class="card" id="solarcard"><div class="label">☀️ Solar</div><div class="value" id="solar">— <span class="unit">kW</span></div><div class="note">Generation</div></div>
@@ -159,7 +163,17 @@ async function loadEnergyData() {
       // Inactive lines get only the default grey stroke; never retain a colour class.
       line.setAttribute("class", [active ? "active" : "", active ? (colour || "") : "", active && reverse ? "reverse" : ""].filter(Boolean).join(" "));
     }
-    setFlow("solarflow", solar > 0.01, "green", false);       // Solar -> home
+    const solarActive = solar > 0.01;
+    const gridActive = gridImport > 0.01 || gridExport > 0.01;
+    const gridColour = gridImport > 0.01 ? "red" : "green";
+    const batteryColour = batteryCharging ? "green" : "blue";
+    document.getElementById("solarcard").classList.toggle("flow-green", solarActive);
+    document.getElementById("evcard").classList.remove("flow-blue");
+    document.getElementById("gridcard").classList.toggle("flow-red", gridActive && gridColour === "red");
+    document.getElementById("gridcard").classList.toggle("flow-green", gridActive && gridColour === "green");
+    document.getElementById("batterycard").classList.toggle("flow-green", batteryCharging);
+    document.getElementById("batterycard").classList.toggle("flow-blue", !batteryCharging && batteryDischarging);
+    setFlow("solarflow", solarActive, "green", false);       // Solar -> home
     setFlow("evflow", false, "blue", false);                 // Home -> EV (set after EV reading)
     setFlow("gridflow", gridImport > 0.01 || gridExport > 0.01,
       gridImport > 0.01 ? "red" : "green", gridExport > 0.01); // Import -> home; export <- home
@@ -175,7 +189,9 @@ async function loadEnergyData() {
       if (!evResponse.ok) throw new Error(evData.details || evData.error || "Connection failed");
       if (!evData.chargerId) throw new Error("Hypervolt endpoint is not deployed yet");
       const evWatts = Number(evData.evPowerW || 0);
-      setFlow("evflow", evWatts > 10, "blue", true);
+      const evActive = evWatts > 10;
+      setFlow("evflow", evActive, "blue", true);
+      document.getElementById("evcard").classList.toggle("flow-blue", evActive);
 
       if (evData.evPowerW === null || evData.evPowerW === undefined) {
         document.getElementById("ev").innerHTML =
@@ -192,6 +208,7 @@ async function loadEnergyData() {
       }
     } catch (evError) {
       setFlow("evflow", false, "blue", false);
+      document.getElementById("evcard").classList.remove("flow-blue");
       document.getElementById("ev").innerHTML =
         '— <span class="unit">kW</span>';
       document.getElementById("evstatus").textContent =
