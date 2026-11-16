@@ -8,26 +8,35 @@
 <style>
 *{box-sizing:border-box}
 body{margin:0;background:#101b2b;color:#f4f7fb;font-family:-apple-system,BlinkMacSystemFont,sans-serif;padding:16px}
-header{padding:12px 2px 20px}h1{font-size:27px;margin:0 0 6px}.sub{color:#9eafc3;font-size:13px}
-.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
-.card{background:#1b2b40;border:1px solid #30445c;border-radius:16px;padding:12px 10px;min-height:116px;min-width:0}
-.card.wide{grid-column:1/-1}.label{font-size:12px;color:#aebed0;margin-bottom:12px;line-height:1.25}
-.value{font-size:clamp(19px,5.4vw,27px);font-weight:700;letter-spacing:-.8px;white-space:nowrap}
-.unit{font-size:12px;color:#aebed0;font-weight:400}.note{font-size:11px;color:#9eafc3;margin-top:9px;line-height:1.3}
-.battery-card{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:130px;padding:17px 19px;transition:border-color .2s}
+header{padding:12px 2px 24px}h1{font-size:27px;margin:0 0 6px}.sub{color:#9eafc3;font-size:13px}
+.energy-map{position:relative;width:100%;max-width:560px;aspect-ratio:1;margin:0 auto}
+.energy-grid{position:absolute;inset:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(3,minmax(0,1fr));column-gap:12.5%;row-gap:12.5%}
+.card{position:relative;z-index:1;background:#1b2b40;border:1px solid #30445c;border-radius:16px;padding:clamp(7px,2vw,14px);min-width:0;min-height:0;aspect-ratio:1;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;overflow:hidden}
+.card .label{font-size:clamp(10px,2.5vw,14px);color:#aebed0;margin-bottom:9px;line-height:1.2}
+.value{font-size:clamp(16px,4.5vw,29px);font-weight:700;letter-spacing:-.7px;white-space:nowrap}
+.unit{font-size:clamp(9px,2vw,12px);color:#aebed0;font-weight:400}
+.note{font-size:clamp(9px,2.2vw,12px);color:#9eafc3;margin-top:8px;line-height:1.25}
+#solarcard{grid-area:1/1}#evcard{grid-area:1/3}#homecard{grid-area:2/2}#gridcard{grid-area:3/1}#batterycard{grid-area:3/3}
 .battery-card.charging{border-color:#27bd78}.battery-card.discharging{border-color:#398de8}
-.battery-info{min-width:0}.battery-info .label{font-size:14px;margin-bottom:12px}
-.battery-state{font-size:13px;font-weight:600;margin-top:7px}
+.battery-state{font-size:clamp(10px,2.4vw,13px);font-weight:600;margin-top:7px}
 .battery-card.charging .battery-state{color:#35d48b}.battery-card.discharging .battery-state{color:#65aaff}
-.battery-visual{display:flex;align-items:center;gap:11px;flex-shrink:0}
-.battery-shell{position:relative;width:42px;height:72px;border:3px solid #aebed0;border-radius:7px;padding:4px;display:flex;align-items:flex-end;overflow:visible}
-.battery-shell:before{content:"";position:absolute;width:17px;height:5px;background:#aebed0;border-radius:3px 3px 0 0;top:-8px;left:10px}
+.battery-visual{display:flex;align-items:center;gap:6px;margin-top:8px}
+.battery-shell{position:relative;width:clamp(20px,5vw,29px);height:clamp(34px,8vw,46px);border:2px solid #aebed0;border-radius:5px;padding:3px;display:flex;align-items:flex-end}
+.battery-shell:before{content:"";position:absolute;width:9px;height:3px;background:#aebed0;border-radius:2px 2px 0 0;top:-5px;left:5px}
 .battery-fill{width:100%;height:0%;background:#8ba2bb;border-radius:2px;transition:height .3s,background .3s}
 .battery-card.charging .battery-fill{background:#27bd78}.battery-card.discharging .battery-fill{background:#398de8}
-.battery-percent{font-size:22px;font-weight:700;min-width:54px;text-align:right}
-.status{margin-top:18px;background:#1b2b40;border-radius:14px;padding:15px;color:#aebed0;font-size:13px}
+.battery-percent{font-size:clamp(13px,3.4vw,20px);font-weight:700}
+.flow-lines{position:absolute;inset:0;width:100%;height:100%;z-index:0;overflow:visible;pointer-events:none}
+.flow-lines path{fill:none;stroke:#64748b;stroke-width:1.1;stroke-dasharray:2.1 2.1;stroke-linecap:round;opacity:.8}
+.flow-lines path.active{opacity:1;animation:dash-flow .65s linear infinite}
+.flow-lines path.green{stroke:#27d889}.flow-lines path.blue{stroke:#4c9cff}.flow-lines path.red{stroke:#ff5964}
+.flow-lines path.reverse{animation-name:dash-flow-reverse}
+@keyframes dash-flow{to{stroke-dashoffset:-8.4}}
+@keyframes dash-flow-reverse{to{stroke-dashoffset:8.4}}
+.status{margin-top:20px;background:#1b2b40;border-radius:14px;padding:15px;color:#aebed0;font-size:13px}
 footer{color:#778ba3;font-size:11px;text-align:center;margin:22px 0}
-@media(min-width:600px){body{max-width:650px;margin:auto}.card{padding:17px}.value{font-size:29px}}
+@media(min-width:600px){body{max-width:700px;margin:auto}}
+@media(prefers-reduced-motion:reduce){.flow-lines path.active{animation:none}}
 </style>
 </head>
 <body>
@@ -35,15 +44,24 @@ footer{color:#778ba3;font-size:11px;text-align:center;margin:22px 0}
 <h1>Home Energy</h1>
 <div class="sub">Fox ESS KH7 · 2 × EP12 · Hypervolt 2</div>
 </header>
-<div class="grid">
-<div class="card"><div class="label">☀️ Solar</div><div class="value" id="solar">— <span class="unit">kW</span></div><div class="note">Generation</div></div>
-<div class="card"><div class="label">🏠 Home</div><div class="value" id="home">— <span class="unit">kW</span></div><div class="note">Consumption</div></div>
-<div class="card"><div class="label">⚡ Grid</div><div class="value" id="grid">— <span class="unit">kW</span></div><div class="note" id="gridnote">Import / export</div></div>
-<div class="card wide battery-card" id="batterycard">
-<div class="battery-info"><div class="label">🔋 Battery</div><div class="value" id="battery">— <span class="unit">kW</span></div><div class="battery-state" id="batterystate">Standby</div></div>
-<div class="battery-visual"><div class="battery-shell" aria-label="Battery charge level"><div class="battery-fill" id="batteryfill"></div></div><div class="battery-percent" id="soc">—%</div></div>
+<div class="energy-map" aria-label="Live home energy flow">
+<svg class="flow-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+  <path id="solarflow" d="M25 25 L37.5 37.5"/>
+  <path id="evflow" d="M62.5 37.5 L75 25"/>
+  <path id="gridflow" d="M25 75 L37.5 62.5"/>
+  <path id="batteryflow" d="M62.5 62.5 L75 75"/>
+</svg>
+<div class="energy-grid">
+  <div class="card" id="solarcard"><div class="label">☀️ Solar</div><div class="value" id="solar">— <span class="unit">kW</span></div><div class="note">Generation</div></div>
+  <div class="card" id="evcard"><div class="label">🚗 EV charging</div><div class="value" id="ev">— <span class="unit">kW</span></div><div class="note" id="evstatus">Awaiting connection</div></div>
+  <div class="card" id="homecard"><div class="label">🏠 Home</div><div class="value" id="home">— <span class="unit">kW</span></div><div class="note">Consumption</div></div>
+  <div class="card" id="gridcard"><div class="label">⚡ Grid</div><div class="value" id="grid">— <span class="unit">kW</span></div><div class="note" id="gridnote">Import / export</div></div>
+  <div class="card battery-card" id="batterycard">
+    <div class="label">🔋 Battery</div><div class="value" id="battery">— <span class="unit">kW</span></div>
+    <div class="battery-state" id="batterystate">Standby</div>
+    <div class="battery-visual"><div class="battery-shell" aria-label="Battery charge level"><div class="battery-fill" id="batteryfill"></div></div><div class="battery-percent" id="soc">—%</div></div>
+  </div>
 </div>
-<div class="card wide"><div class="label">🚗 EV charging · Hypervolt</div><div class="value" id="ev">— <span class="unit">kW</span></div><div class="note" id="evstatus">Charger status: awaiting connection</div></div>
 </div>
 <div class="status" id="status">Dashboard created. Live data connection not yet configured.</div>
 <footer>Personal energy dashboard</footer>
@@ -129,6 +147,18 @@ async function loadEnergyData() {
       gridImport > 0.01 ? "Importing" :
       gridExport > 0.01 ? "Exporting" : "No grid flow";
 
+    // Animate each connection in the direction energy is flowing.
+    function setFlow(id, active, colour, reverse) {
+      const line = document.getElementById(id);
+      line.setAttribute("class", [active ? "active" : "", colour || "", reverse ? "reverse" : ""].filter(Boolean).join(" "));
+    }
+    setFlow("solarflow", solar > 0.01, "green", false);       // Solar -> home
+    setFlow("evflow", false, "blue", false);                 // Home -> EV (set after EV reading)
+    setFlow("gridflow", gridImport > 0.01 || gridExport > 0.01,
+      gridImport > 0.01 ? "red" : "green", gridExport > 0.01); // Import -> home; export <- home
+    setFlow("batteryflow", batteryCharging || batteryDischarging,
+      batteryCharging ? "green" : "blue", batteryDischarging); // Home -> battery; battery -> home
+
     try {
       const evResponse = await fetch(HYPERVOLT_WORKER, {
         headers: { "X-Dashboard-Password": password }
@@ -137,6 +167,8 @@ async function loadEnergyData() {
 
       if (!evResponse.ok) throw new Error(evData.details || evData.error || "Connection failed");
       if (!evData.chargerId) throw new Error("Hypervolt endpoint is not deployed yet");
+      const evWatts = Number(evData.evPowerW || 0);
+      setFlow("evflow", evWatts > 10, "blue", false);
 
       if (evData.evPowerW === null || evData.evPowerW === undefined) {
         document.getElementById("ev").innerHTML =
@@ -152,6 +184,7 @@ async function loadEnergyData() {
           "Live Hypervolt reading";
       }
     } catch (evError) {
+      setFlow("evflow", false, "blue", false);
       document.getElementById("ev").innerHTML =
         '— <span class="unit">kW</span>';
       document.getElementById("evstatus").textContent =
