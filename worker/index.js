@@ -165,19 +165,23 @@ async function getHypervoltReading(env) {
       }
     }, 9000);
 
-    try {
-      socket = new WebSocket(
-        "wss://api.hypervolt.co.uk/ws/charger/" + encodeURIComponent(chargerId) + "/sync"
+    (async () => {
+      const wsResponse = await fetch(
+        "https://api.hypervolt.co.uk/ws/charger/" + encodeURIComponent(chargerId) + "/sync",
+        {
+          headers: {
+            "Upgrade": "websocket",
+            "Origin": "https://hypervolt.co.uk",
+            "User-Agent": "home-assistant-hypervolt-charger/2.11.0"
+          }
+        }
       );
 
-      socket.addEventListener("open", () => {
-        socket.send(JSON.stringify({
-          jsonrpc: "2.0",
-          id: "0",
-          method: "login",
-          params: { token: accessToken, version: 3 }
-        }));
-      });
+      socket = wsResponse.webSocket;
+      if (!socket) {
+        throw new Error("Hypervolt did not accept the WebSocket connection");
+      }
+      socket.accept();
 
       socket.addEventListener("message", event => {
         try {
@@ -244,9 +248,14 @@ async function getHypervoltReading(env) {
           }
         }
       });
-    } catch (error) {
-      finish(error);
-    }
+
+      socket.send(JSON.stringify({
+        jsonrpc: "2.0",
+        id: "0",
+        method: "login",
+        params: { token: accessToken, version: 3 }
+      }));
+    })().catch(finish);
   });
 }
 
