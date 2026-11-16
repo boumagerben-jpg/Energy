@@ -60,6 +60,7 @@ footer{color:#778ba3;font-size:11px;text-align:center;margin:22px 0}
 
 <script>
 const FOX_WORKER = "https://energy-api.gerbenbouma.workers.dev/";
+const HYPERVOLT_WORKER = FOX_WORKER + "hypervolt";
 
 function kw(value) {
   return Number(value || 0).toFixed(2);
@@ -133,8 +134,33 @@ async function loadEnergyData() {
       gridImport > 0.01 ? "Importing from grid" :
       gridExport > 0.01 ? "Exporting to grid" : "No significant grid flow";
 
-    document.getElementById("evstatus").textContent =
-      "Hypervolt connection to be added";
+    try {
+      const evResponse = await fetch(HYPERVOLT_WORKER, {
+        headers: { "X-Dashboard-Password": password }
+      });
+      const evData = await evResponse.json();
+
+      if (!evResponse.ok) throw new Error(evData.details || evData.error || "Connection failed");
+
+      if (evData.evPowerW === null || evData.evPowerW === undefined) {
+        document.getElementById("ev").innerHTML =
+          '— <span class="unit">kW</span>';
+        document.getElementById("evstatus").textContent =
+          evData.charging === false ? "Connected · Not charging" : "Connected · Power not currently reported";
+      } else {
+        document.getElementById("ev").innerHTML =
+          kw(Number(evData.evPowerW) / 1000) + ' <span class="unit">kW</span>';
+        document.getElementById("evstatus").textContent =
+          evData.charging === true ? "Charging · Live Hypervolt reading" :
+          evData.charging === false ? "Connected · Not charging" :
+          "Live Hypervolt reading";
+      }
+    } catch (evError) {
+      document.getElementById("ev").innerHTML =
+        '— <span class="unit">kW</span>';
+      document.getElementById("evstatus").textContent =
+        "Hypervolt unavailable: " + evError.message;
+    }
 
     const oldRaw = document.getElementById("foxData");
     if (oldRaw) oldRaw.remove();
