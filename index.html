@@ -8,7 +8,7 @@
 <style>
 *{box-sizing:border-box}
 body{margin:0;background:#101b2b;color:#f4f7fb;font-family:-apple-system,BlinkMacSystemFont,sans-serif;padding:16px}
-header{padding:12px 2px 24px}h1{font-size:27px;margin:0 0 6px}.sub{color:#9eafc3;font-size:13px}
+header{padding:12px 2px 24px}.page-header{position:relative}h1{font-size:27px;margin:0 0 6px}.sub{color:#9eafc3;font-size:13px}.refresh-button{position:absolute;right:0;top:8px;width:38px;height:38px;border:1px solid #40566f;border-radius:11px;background:#1b2b40;color:#f4f7fb;font-size:25px;line-height:1;cursor:pointer}.refresh-button:active{background:#30445c}
 .energy-map{position:relative;width:100%;max-width:560px;aspect-ratio:2/3;margin:0 auto}
 .energy-grid{position:absolute;inset:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(3,minmax(0,1fr));column-gap:1.25%;row-gap:1.25%;align-items:center;justify-items:center}
 .card{position:relative;z-index:1;background:#1b2b40;border:1px solid #30445c;border-radius:16px;padding:12% clamp(7px,2vw,14px) 10%;min-width:0;min-height:0;width:120%;height:auto;aspect-ratio:1;align-self:center;display:flex;flex-direction:column;justify-content:space-between;align-items:center;text-align:center;overflow:hidden}
@@ -47,8 +47,9 @@ footer{color:#778ba3;font-size:11px;text-align:center;margin:22px 0}
 </style>
 </head>
 <body>
-<header>
+<header class="page-header">
 <h1>Home Energy</h1>
+<button class="refresh-button" type="button" aria-label="Refresh dashboard" title="Refresh dashboard" onclick="window.location.reload()">↻</button>
 <div class="sub">Fox ESS KH7 · 2 × EP12 · Hypervolt 2</div>
 </header>
 <div class="energy-map" aria-label="Live home energy flow">
@@ -60,7 +61,7 @@ footer{color:#778ba3;font-size:11px;text-align:center;margin:22px 0}
 </svg>
 <div class="energy-grid">
   <div class="card" id="solarcard"><div class="label">☀️ Solar</div><div class="value" id="solar">— <span class="unit">kW</span></div><div class="note">Generation</div></div>
-  <div class="card" id="evcard"><div class="label">🚗 EV charging</div><div class="value" id="ev">— <span class="unit">kW</span></div><div class="note" id="evstatus">Awaiting connection</div></div>
+  <div class="card" id="evcard"><div class="label">🚗 EV charging</div><div class="value" id="ev">— <span class="unit">kW</span></div><div class="note" id="evstatus">Not charging</div></div>
   <div class="card" id="homecard"><div class="label">🏠 Home</div><div class="value" id="home">— <span class="unit">kW</span></div><div class="note">Consumption</div></div>
   <div class="card" id="gridcard"><div class="label">⚡ Grid</div><div class="value" id="grid">— <span class="unit">kW</span></div><div class="note" id="gridnote">Import / export</div></div>
   <div class="card battery-card" id="batterycard">
@@ -197,14 +198,13 @@ async function loadEnergyData() {
         document.getElementById("ev").innerHTML =
           '— <span class="unit">kW</span>';
         document.getElementById("evstatus").textContent =
-          evData.charging === false ? "Connected · Not charging" : "Connected · Power not currently reported";
+          evData.charging === false ? "Not charging" : evData.charging === true ? "Charging" : "Status unavailable";
       } else {
         document.getElementById("ev").innerHTML =
           kw(Number(evData.evPowerW) / 1000) + ' <span class="unit">kW</span>';
         document.getElementById("evstatus").textContent =
-          evData.charging === true ? "Charging · Live Hypervolt reading" :
-          evData.charging === false ? "Connected · Not charging" :
-          "Live Hypervolt reading";
+          evData.charging === true ? "Charging" :
+          evData.charging === false ? "Not charging" : "Status unavailable";
       }
     } catch (evError) {
       setFlow("evflow", false, "blue", false);
