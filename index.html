@@ -141,6 +141,7 @@ async function loadEnergyData() {
       const evData = await evResponse.json();
 
       if (!evResponse.ok) throw new Error(evData.details || evData.error || "Connection failed");
+      if (!evData.chargerId) throw new Error("Hypervolt endpoint is not deployed yet");
 
       if (evData.evPowerW === null || evData.evPowerW === undefined) {
         document.getElementById("ev").innerHTML =
