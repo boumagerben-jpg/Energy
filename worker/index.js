@@ -80,6 +80,176 @@ function md5(input) {
   ).join("");
 }
 
+
+let cachedHypervolt = null;
+let hypervoltCachedAt = 0;
+
+async function getHypervoltReading(env) {
+  const tokenResponse = await fetch(
+    "https://kc.prod.hypervolt.co.uk/realms/retail-customers/protocol/openid-connect/token",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "home-assistant-hypervolt-charger/2.11.0"
+      },
+      body: new URLSearchParams({
+        client_id: "home-assistant",
+        grant_type: "password",
+        scope: "openid profile email offline_access",
+        username: env.HYPERVOLT_EMAIL,
+        password: env.HYPERVOLT_PASSWORD
+      })
+    }
+  );
+
+  if (!tokenResponse.ok) {
+    throw new Error("Hypervolt sign-in failed (" + tokenResponse.status + ")");
+  }
+
+  const tokenData = await tokenResponse.json();
+  const accessToken = tokenData.access_token;
+  if (!accessToken) throw new Error("Hypervolt did not return an access token");
+
+  const chargersResponse = await fetch(
+    "https://api.hypervolt.co.uk/users/me?includes=chargers",
+    {
+      headers: {
+        "Authorization": "Bearer " + accessToken,
+        "User-Agent": "home-assistant-hypervolt-charger/2.11.0"
+      }
+    }
+  );
+
+  if (!chargersResponse.ok) {
+    throw new Error("Could not retrieve Hypervolt charger (" + chargersResponse.status + ")");
+  }
+
+  const chargersData = await chargersResponse.json();
+  const chargers = chargersData.chargers || [];
+  if (!chargers.length) throw new Error("No Hypervolt charger found");
+  const chargerId = env.HYPERVOLT_CHARGER_ID || chargers[0].id;
+
+  if (!chargers.some(charger => String(charger.id) === String(chargerId))) {
+    throw new Error("Configured Hypervolt charger was not found in this account");
+  }
+
+  return await new Promise((resolve, reject) => {
+    let finished = false;
+    let authenticated = false;
+    let evPower = null;
+    let charging = null;
+    let sessionEnergyWh = null;
+    let socket;
+
+    const finish = (error, value) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timeout);
+      try { if (socket && socket.readyState < 2) socket.close(1000, "Reading complete"); } catch {}
+      if (error) reject(error);
+      else resolve(value);
+    };
+
+    const timeout = setTimeout(() => {
+      if (evPower !== null || authenticated) {
+        finish(null, {
+          evPowerW: evPower,
+          charging,
+          sessionEnergyWh,
+          chargerId,
+          updatedAt: new Date().toISOString()
+        });
+      } else {
+        finish(new Error("Timed out waiting for Hypervolt data"));
+      }
+    }, 9000);
+
+    try {
+      socket = new WebSocket(
+        "wss://api.hypervolt.co.uk/ws/charger/" + encodeURIComponent(chargerId) + "/sync"
+      );
+
+      socket.addEventListener("open", () => {
+        socket.send(JSON.stringify({
+          jsonrpc: "2.0",
+          id: "0",
+          method: "login",
+          params: { token: accessToken, version: 3 }
+        }));
+      });
+
+      socket.addEventListener("message", event => {
+        try {
+          const message = JSON.parse(event.data);
+          const method = message.method || "";
+          const payload = message.params ?? message.result;
+
+          if (!authenticated && payload && payload.authenticated === true) {
+            authenticated = true;
+            socket.send(JSON.stringify({
+              jsonrpc: "2.0",
+              id: "1",
+              method: "sync.snapshot"
+            }));
+            return;
+          }
+
+          const inspect = value => {
+            if (!value || typeof value !== "object") return;
+            if (Object.prototype.hasOwnProperty.call(value, "ev_power")) {
+              const n = Number(value.ev_power);
+              if (Number.isFinite(n)) evPower = n;
+            }
+            if (Object.prototype.hasOwnProperty.call(value, "charging")) {
+              charging = Boolean(value.charging);
+            }
+            if (Object.prototype.hasOwnProperty.call(value, "watt_hours")) {
+              const n = Number(value.watt_hours);
+              if (Number.isFinite(n)) sessionEnergyWh = n;
+            }
+            if (Array.isArray(value)) value.forEach(inspect);
+          };
+
+          inspect(payload);
+
+          if (evPower !== null && (method === "get.session" || method === "sync.apply" || method === "sync.snapshot" || method === "")) {
+            finish(null, {
+              evPowerW: evPower,
+              charging,
+              sessionEnergyWh,
+              chargerId,
+              updatedAt: new Date().toISOString()
+            });
+          }
+        } catch {}
+      });
+
+      socket.addEventListener("error", () => {
+        finish(new Error("Hypervolt WebSocket connection failed"));
+      });
+
+      socket.addEventListener("close", () => {
+        if (!finished) {
+          if (evPower !== null || authenticated) {
+            finish(null, {
+              evPowerW: evPower,
+              charging,
+              sessionEnergyWh,
+              chargerId,
+              updatedAt: new Date().toISOString()
+            });
+          } else {
+            finish(new Error("Hypervolt WebSocket closed before data arrived"));
+          }
+        }
+      });
+    } catch (error) {
+      finish(error);
+    }
+  });
+}
+
 export default {
   async fetch(request, env) {
     const origin = request.headers.get("Origin") || "";
@@ -104,12 +274,45 @@ export default {
       return new Response("Origin not allowed", { status: 403, headers: cors });
     }
 
-    if (!env.FOX_API_KEY || !env.FOX_DEVICE_SN || !env.DASHBOARD_PASSWORD) {
+    const url = new URL(request.url);
+    const isHypervolt = url.pathname === "/hypervolt";
+
+    if (!env.DASHBOARD_PASSWORD) {
       return new Response("Worker secrets are missing", { status: 500, headers: cors });
+    }
+    if (isHypervolt && (!env.HYPERVOLT_EMAIL || !env.HYPERVOLT_PASSWORD)) {
+      return new Response("Hypervolt secrets are missing", { status: 500, headers: cors });
+    }
+    if (!isHypervolt && (!env.FOX_API_KEY || !env.FOX_DEVICE_SN)) {
+      return new Response("Fox ESS secrets are missing", { status: 500, headers: cors });
     }
 
     if (request.headers.get("X-Dashboard-Password") !== env.DASHBOARD_PASSWORD) {
       return new Response("Incorrect dashboard password", { status: 401, headers: cors });
+    }
+
+    if (isHypervolt) {
+      if (cachedHypervolt && Date.now() - hypervoltCachedAt < 300000) {
+        return new Response(JSON.stringify(cachedHypervolt), {
+          headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" }
+        });
+      }
+      try {
+        const reading = await getHypervoltReading(env);
+        cachedHypervolt = reading;
+        hypervoltCachedAt = Date.now();
+        return new Response(JSON.stringify(reading), {
+          headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" }
+        });
+      } catch (error) {
+        return new Response(JSON.stringify({
+          error: "Hypervolt connection failed",
+          details: error.message
+        }), {
+          status: 502,
+          headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" }
+        });
+      }
     }
 
     if (cachedData && Date.now() - cachedAt < 300000) {
