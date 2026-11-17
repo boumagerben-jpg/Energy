@@ -319,7 +319,7 @@ async function queryFoxGridEnergyReport(env, year, month) {
       "Content-Type": "application/json", "User-Agent": "Mozilla/5.0"
     },
     body: JSON.stringify({ sn: env.FOX_DEVICE_SN, year, month, dimension: "month", variables }),
-    signal: AbortSignal.timeout(20000)
+    signal: AbortSignal.timeout(12000)
   });
   const result = await response.json();
   if (!response.ok || result.errno !== 0) {
