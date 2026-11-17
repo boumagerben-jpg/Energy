@@ -273,6 +273,9 @@ function londonDateParts() {
 
 
 async function queryFoxEnergyReport(env, params) {
+  const variable = params.variable || "PVEnergyTotal";
+  const reportParams = { ...params };
+  delete reportParams.variable;
   const path = "/op/v0/device/report/query";
   const timestamp = Date.now().toString();
   const signature = md5(path + "\r\n" + env.FOX_API_KEY + "\r\n" + timestamp);
@@ -286,13 +289,13 @@ async function queryFoxEnergyReport(env, params) {
       "Content-Type": "application/json",
       "User-Agent": "Mozilla/5.0"
     },
-    body: JSON.stringify({ sn: env.FOX_DEVICE_SN, ...params, variables: ["PVEnergyTotal"] })
+    body: JSON.stringify({ sn: env.FOX_DEVICE_SN, ...reportParams, variables: [variable] })
   });
   const result = await response.json();
   if (!response.ok || result.errno !== 0) {
     throw new Error("Fox ESS historical report failed: " + JSON.stringify(result));
   }
-  const item = (result.result || []).find(entry => entry.variable === "PVEnergyTotal");
+  const item = (result.result || []).find(entry => entry.variable === variable);
   if (!item || !Array.isArray(item.values)) {
     throw new Error("Fox ESS historical report did not include PV energy values.");
   }
@@ -303,7 +306,7 @@ async function queryFoxEnergyReport(env, params) {
   });
 }
 
-async function getFoxHistoryReport(env, date, dimension) {
+async function getFoxHistoryReport(env, date, dimension, variable = "PVEnergyTotal") {
   const [year, month, day] = date.split("-").map(Number);
   let values;
   if (dimension === "week") {
@@ -319,7 +322,7 @@ async function getFoxHistoryReport(env, date, dimension) {
     const monthKeys = [...new Set(dates.map(d => d.year + "-" + d.month))];
     const reports = await Promise.all(monthKeys.map(async key => {
       const [reportYear, reportMonth] = key.split("-").map(Number);
-      return [key, await queryFoxEnergyReport(env, { year: reportYear, month: reportMonth, dimension: "month" })];
+      return [key, await queryFoxEnergyReport(env, { year: reportYear, month: reportMonth, dimension: "month", variable })];
     }));
     const byMonth = new Map(reports);
     values = dates.map(d => {
@@ -329,13 +332,13 @@ async function getFoxHistoryReport(env, date, dimension) {
   } else if (dimension === "year") {
     // Build monthly totals from the daily values returned by each monthly report.
     values = await Promise.all(Array.from({ length: 12 }, async (_, i) => {
-      const series = await queryFoxEnergyReport(env, { year, month: i + 1, dimension: "month" });
+      const series = await queryFoxEnergyReport(env, { year, month: i + 1, dimension: "month", variable });
       return series.reduce((sum, value) => sum + (value == null ? 0 : value), 0);
     }));
   } else {
-    values = await queryFoxEnergyReport(env, { year, month, dimension: "month" });
+    values = await queryFoxEnergyReport(env, { year, month, dimension: "month", variable });
   }
-  return { dimension, date, values, updatedAt: new Date().toISOString() };
+  return { dimension, date, variable, values, updatedAt: new Date().toISOString() };
 }
 
 async function getFoxDailyReport(env) {
@@ -436,7 +439,13 @@ export default {
           status: 400, headers: { ...cors, "Content-Type": "application/json" }
         });
       }
-      const cacheKey = dimension + ":" + date;
+      const variable = url.searchParams.get("variable") || "PVEnergyTotal";
+      if (!["PVEnergyTotal", "gridConsumption", "feedin"].includes(variable)) {
+        return new Response(JSON.stringify({ error: "Invalid history variable" }), {
+          status: 400, headers: { ...cors, "Content-Type": "application/json" }
+        });
+      }
+      const cacheKey = dimension + ":" + date + ":" + variable;
       const cached = cachedHistory.get(cacheKey);
       if (cached && Date.now() - cached.at < 900000) {
         return new Response(JSON.stringify(cached.data), {
@@ -444,7 +453,7 @@ export default {
         });
       }
       try {
-        const history = await getFoxHistoryReport(env, date, dimension);
+        const history = await getFoxHistoryReport(env, date, dimension, variable);
         cachedHistory.set(cacheKey, { data: history, at: Date.now() });
         return new Response(JSON.stringify(history), {
           headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" }
