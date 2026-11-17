@@ -6,6 +6,8 @@
 
 let cachedData = null;
 let cachedAt = 0;
+let cachedDaily = null;
+let cachedDailyAt = 0;
 
 function md5(input) {
   const bytes = new TextEncoder().encode(input);
@@ -259,6 +261,57 @@ async function getHypervoltReading(env) {
   });
 }
 
+
+function londonDateParts() {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London", year: "numeric", month: "2-digit", day: "2-digit"
+  }).formatToParts(new Date());
+  const get = type => parts.find(part => part.type === type).value;
+  return { year: Number(get("year")), month: Number(get("month")), day: Number(get("day")) };
+}
+
+async function getFoxDailyReport(env) {
+  const { year, month, day } = londonDateParts();
+  const path = "/op/v0/device/report/query";
+  const timestamp = Date.now().toString();
+  const signature = md5(path + "\\r\\n" + env.FOX_API_KEY + "\\r\\n" + timestamp);
+  const response = await fetch("https://www.foxesscloud.com" + path, {
+    method: "POST",
+    headers: {
+      token: env.FOX_API_KEY,
+      timestamp,
+      signature,
+      lang: "en",
+      "Content-Type": "application/json",
+      "User-Agent": "Mozilla/5.0"
+    },
+    body: JSON.stringify({
+      sn: env.FOX_DEVICE_SN,
+      year,
+      month,
+      day,
+      dimension: "day",
+      variables: ["PVEnergyTotal", "gridConsumption", "feedin"]
+    })
+  });
+  const result = await response.json();
+  if (!response.ok || result.errno !== 0) {
+    throw new Error("Fox ESS daily report failed: " + JSON.stringify(result));
+  }
+  const totals = {};
+  for (const item of result.result || []) {
+    const values = Array.isArray(item.values) ? item.values : [];
+    totals[item.variable] = values.reduce((sum, value) => sum + Number(value || 0), 0);
+  }
+  return {
+    date: year + "-" + String(month).padStart(2, "0") + "-" + String(day).padStart(2, "0"),
+    solarKWh: totals.PVEnergyTotal ?? null,
+    gridImportKWh: totals.gridConsumption ?? null,
+    gridExportKWh: totals.feedin ?? null,
+    updatedAt: new Date().toISOString()
+  };
+}
+
 export default {
   async fetch(request, env) {
     const origin = request.headers.get("Origin") || "";
@@ -285,6 +338,7 @@ export default {
 
     const url = new URL(request.url);
     const isHypervolt = url.pathname === "/hypervolt";
+    const isDaily = url.pathname === "/daily";
 
     if (!env.DASHBOARD_PASSWORD) {
       return new Response("Worker secrets are missing", { status: 500, headers: cors });
@@ -298,6 +352,30 @@ export default {
 
     if (request.headers.get("X-Dashboard-Password") !== env.DASHBOARD_PASSWORD) {
       return new Response("Incorrect dashboard password", { status: 401, headers: cors });
+    }
+
+    if (isDaily) {
+      if (cachedDaily && Date.now() - cachedDailyAt < 900000) {
+        return new Response(JSON.stringify(cachedDaily), {
+          headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" }
+        });
+      }
+      try {
+        const daily = await getFoxDailyReport(env);
+        cachedDaily = daily;
+        cachedDailyAt = Date.now();
+        return new Response(JSON.stringify(daily), {
+          headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" }
+        });
+      } catch (error) {
+        return new Response(JSON.stringify({
+          error: "Fox ESS daily report failed",
+          details: error.message
+        }), {
+          status: 502,
+          headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" }
+        });
+      }
     }
 
     if (isHypervolt) {
