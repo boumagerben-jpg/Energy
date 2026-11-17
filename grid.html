@@ -31,7 +31,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:8px
 .chart-wrap{width:100%;overflow:hidden}svg.chart{display:block;width:100%;height:auto;min-height:190px}
 .legend{display:flex;gap:16px;align-items:center;color:#aebed0;font-size:11px;margin-top:10px}
 .key{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px}
-.status{color:#91a6bd;font-size:12px;min-height:18px;margin-top:10px}
+.bar-detail{color:#f4f7fb;font-size:13px;min-height:20px;margin-top:7px;font-weight:600}.status{color:#91a6bd;font-size:12px;min-height:18px;margin-top:10px}
 .chart-panel{margin-top:14px;padding-top:14px;border-top:1px solid #40566f}
 .chart-heading{font-size:15px;font-weight:700;margin:0 0 8px}
 @media(max-width:420px){body{padding:12px}.panel{padding:14px}.summary{gap:8px}.daily-value{font-size:22px}.current{font-size:23px}}
@@ -64,12 +64,12 @@ header{display:flex;align-items:center;justify-content:space-between;padding:8px
   <div class="period-picker" id="periodPicker" hidden></div>
   <div class="chart-panel" style="margin-top:0;padding-top:0;border-top:0">
     <h3 class="chart-heading">Import</h3>
-    <div class="chart-wrap"><svg class="chart" id="importChart" viewBox="0 0 640 260" role="img" aria-label="Grid import energy history chart"></svg></div>
+    <div class="chart-wrap"><svg class="chart" id="importChart" viewBox="0 0 640 260" role="img" aria-label="Grid import energy history chart"></svg></div><div class="bar-detail" id="importBarDetail" aria-live="polite">Tap an import bar to see its value</div>
     <div class="legend"><span><i class="key" style="background:#ff5964"></i>Import</span></div>
   </div>
   <div class="chart-panel">
     <h3 class="chart-heading">Export</h3>
-    <div class="chart-wrap"><svg class="chart" id="exportChart" viewBox="0 0 640 260" role="img" aria-label="Grid export energy history chart"></svg></div>
+    <div class="chart-wrap"><svg class="chart" id="exportChart" viewBox="0 0 640 260" role="img" aria-label="Grid export energy history chart"></svg></div><div class="bar-detail" id="exportBarDetail" aria-live="polite">Tap an export bar to see its value</div>
     <div class="legend"><span><i class="key" style="background:#27d889"></i>Export</span></div>
   </div>
   <div class="status" id="historyStatus">Loading grid history…</div>
@@ -122,7 +122,7 @@ function drawChart(id,values,labels,colour){
  const vals=values.map(v=>v==null?0:Math.max(0,v)),max=Math.max(1,...vals)*1.12,plotH=H-T-B,plotW=W-L-R,slot=plotW/Math.max(1,vals.length),barW=Math.max(3,Math.min(38,slot*.58));
  let s='<text x="14" y="'+(T+plotH/2)+'" fill="#aebed0" font-size="14" font-weight="600" text-anchor="middle" transform="rotate(-90 14 '+(T+plotH/2)+')">kWh</text>';
  for(let i=0;i<=4;i++){const y=T+plotH*i/4,v=max*(1-i/4);s+='<line x1="'+L+'" y1="'+y+'" x2="'+(W-R)+'" y2="'+y+'" stroke="#40536a" stroke-width="1"/><text x="'+(L-8)+'" y="'+(y+4)+'" fill="#9eafc3" font-size="15" text-anchor="end">'+v.toFixed(max<10?1:0)+'</text>'}
- vals.forEach((v,i)=>{const x=L+i*slot+(slot-barW)/2,h=v/max*plotH,y=T+plotH-h,isToday=!!labels[i]?.current;s+='<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+barW.toFixed(1)+'" height="'+Math.max(0,h).toFixed(1)+'" rx="3" fill="'+colour+'"><title>'+esc(labels[i]?.date||labels[i]?.label)+': '+v.toFixed(2)+' kWh</title></rect>';const every=vals.length>20?Math.ceil(vals.length/12):1;if(i%every===0||i===vals.length-1)s+='<text x="'+(x+barW/2).toFixed(1)+'" y="'+(H-25)+'" fill="#aebed0" font-size="'+(vals.length>20?12:15)+'" text-anchor="middle">'+esc(labels[i]?.label||"")+'</text>'});
+ vals.forEach((v,i)=>{const x=L+i*slot+(slot-barW)/2,h=v/max*plotH,y=T+plotH-h,isToday=!!labels[i]?.current;s+='<rect data-value="'+v.toFixed(2)+'" data-label="'+esc(labels[i]?.date||labels[i]?.label||"")+'" x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+barW.toFixed(1)+'" height="'+Math.max(0,h).toFixed(1)+'" rx="3" fill="'+colour+'" style="cursor:pointer"><title>'+esc(labels[i]?.date||labels[i]?.label)+': '+v.toFixed(2)+' kWh</title></rect>';const every=vals.length>20?Math.ceil(vals.length/12):1;if(i%every===0||i===vals.length-1)s+='<text x="'+(x+barW/2).toFixed(1)+'" y="'+(H-25)+'" fill="#aebed0" font-size="'+(vals.length>20?12:15)+'" text-anchor="middle">'+esc(labels[i]?.label||"")+'</text>'});
  svg.innerHTML=s;
 }
 async function loadHistory(){
@@ -147,7 +147,7 @@ async function loadHistory(){
  }catch(e){status.textContent=e.message;document.getElementById("importChart").innerHTML='<text x="320" y="125" fill="#9eafc3" font-size="14" text-anchor="middle">Historical data unavailable</text>';document.getElementById("exportChart").innerHTML='<text x="320" y="125" fill="#9eafc3" font-size="14" text-anchor="middle">Historical data unavailable</text>'}
 }
 document.querySelectorAll("[data-mode]").forEach(btn=>btn.addEventListener("click",()=>{mode=btn.dataset.mode;document.querySelectorAll("[data-mode]").forEach(b=>b.classList.toggle("active",b===btn));if(mode==="last7")selectedDate=todayISO;if(mode==="week")selectedDate=localISO(mondayOf(dateFromISO(todayISO)));renderPicker();loadHistory()}));
-renderPicker();loadLive();loadHistory();setInterval(loadLive,300000);
+["import","export"].forEach(kind=>document.getElementById(kind+"Chart").addEventListener("click",e=>{const bar=e.target.closest("rect[data-value]");if(!bar)return;document.getElementById(kind+"BarDetail").textContent=bar.dataset.label+": "+Number(bar.dataset.value).toFixed(2)+" kWh";}));\nrenderPicker();loadLive();loadHistory();setInterval(loadLive,300000);
 </script>
 </body>
 </html>
