@@ -53,7 +53,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:8px
     </div>
     <div class="max-label"><span>0 kW</span><span>5.39 kW max</span></div>
   </div>
-  <div class="pv-side"><div class="today"><div class="today-label">Generated today</div><div class="today-value"><span id="todayEnergy">—</span><span class="today-unit">kWh</span></div></div><div class="pv-gauges"><div class="pv-gauge"><div class="pv-ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="none" stroke="#53657a" stroke-width="9" pathLength="100" stroke-dasharray="88 12" transform="rotate(111.6 50 50)"/><circle id="pv1Arc" cx="50" cy="50" r="40" fill="none" stroke="#27d889" stroke-width="9" pathLength="100" stroke-dasharray="0 100" transform="rotate(111.6 50 50)"/></svg><div class="pv-ring-value" id="pv1Daily">—</div></div><div class="pv-name">PV1</div><div class="pv-current" id="pv1Current">— kW</div></div><div class="pv-gauge"><div class="pv-ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="none" stroke="#53657a" stroke-width="9" pathLength="100" stroke-dasharray="88 12" transform="rotate(111.6 50 50)"/><circle id="pv2Arc" cx="50" cy="50" r="40" fill="none" stroke="#27d889" stroke-width="9" pathLength="100" stroke-dasharray="0 100" transform="rotate(111.6 50 50)"/></svg><div class="pv-ring-value" id="pv2Daily">—</div></div><div class="pv-name">PV2</div><div class="pv-current" id="pv2Current">— kW</div></div><div class="pv-gauge"><div class="pv-ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="none" stroke="#53657a" stroke-width="9" pathLength="100" stroke-dasharray="88 12" transform="rotate(111.6 50 50)"/><circle id="pv3Arc" cx="50" cy="50" r="40" fill="none" stroke="#27d889" stroke-width="9" pathLength="100" stroke-dasharray="0 100" transform="rotate(111.6 50 50)"/></svg><div class="pv-ring-value" id="pv3Daily">—</div></div><div class="pv-name">PV3</div><div class="pv-current" id="pv3Current">— kW</div></div></div></div>
+  <div class="pv-side"><div class="today"><div class="today-label">Generated today</div><div class="today-value"><span id="todayEnergy">—</span><span class="today-unit">kWh</span></div></div><div class="pv-gauges"><div class="pv-gauge"><div class="pv-ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="none" stroke="#53657a" stroke-width="9" pathLength="100" stroke-dasharray="88 12" transform="rotate(111.6 50 50)"/><circle id="pv1Arc" cx="50" cy="50" r="40" fill="none" stroke="#27d889" stroke-width="9" pathLength="100" stroke-dasharray="0 100" transform="rotate(111.6 50 50)"/></svg><div class="pv-ring-value" id="pv1Current">0.00</div></div><div class="pv-name">PV1</div><div class="pv-current" id="pv1Daily">— kWh today</div></div><div class="pv-gauge"><div class="pv-ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="none" stroke="#53657a" stroke-width="9" pathLength="100" stroke-dasharray="88 12" transform="rotate(111.6 50 50)"/><circle id="pv2Arc" cx="50" cy="50" r="40" fill="none" stroke="#27d889" stroke-width="9" pathLength="100" stroke-dasharray="0 100" transform="rotate(111.6 50 50)"/></svg><div class="pv-ring-value" id="pv2Current">0.00</div></div><div class="pv-name">PV2</div><div class="pv-current" id="pv2Daily">— kWh today</div></div><div class="pv-gauge"><div class="pv-ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="none" stroke="#53657a" stroke-width="9" pathLength="100" stroke-dasharray="88 12" transform="rotate(111.6 50 50)"/><circle id="pv3Arc" cx="50" cy="50" r="40" fill="none" stroke="#27d889" stroke-width="9" pathLength="100" stroke-dasharray="0 100" transform="rotate(111.6 50 50)"/></svg><div class="pv-ring-value" id="pv3Current">0.00</div></div><div class="pv-name">PV3</div><div class="pv-current" id="pv3Daily">— kWh today</div></div></div></div>
 </section>
 <section class="panel">
   <h2 class="section-title">Solar generation history</h2>
@@ -111,9 +111,9 @@ async function loadLive() {
     [1,2,3].forEach((n,i)=>{
       const cap=(n===3?3:4)*0.49;
       document.getElementById("pv"+n+"Arc").setAttribute("stroke-dasharray",(Math.min(pvNow[i],cap)/cap*88).toFixed(2)+" 100");
-      document.getElementById("pv"+n+"Current").textContent=pvNow[i].toFixed(2)+" kW";
+      document.getElementById("pv"+n+"Current").textContent=pvNow[i].toFixed(2);
       // Fox's supported energy report does not provide separate PV-string daily totals.
-      document.getElementById("pv"+n+"Daily").textContent="—";
+      document.getElementById("pv"+n+"Daily").textContent="— kWh today";
     });
     document.getElementById("currentPower").innerHTML = kw.toFixed(2) + " <span>kW</span>";
     document.getElementById("gaugeGreen").setAttribute("stroke-dasharray",(Math.min(kw,MAX_KW)/MAX_KW*88).toFixed(2)+" 100");
@@ -121,7 +121,7 @@ async function loadLive() {
   } catch(e) {
     document.getElementById("currentPower").innerHTML = "— <span>kW</span>";
     [1,2,3].forEach(n=>{
-      document.getElementById("pv"+n+"Current").textContent="— kW";
+      document.getElementById("pv"+n+"Current").textContent="—";
       document.getElementById("pv"+n+"Daily").textContent="—";
     });
     document.getElementById("historyStatus").textContent=e.message;
