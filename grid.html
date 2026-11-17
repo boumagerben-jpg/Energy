@@ -142,17 +142,13 @@ async function loadHistory(){
  const date=mode==="last7"?localISO(new Date(today.getFullYear(),today.getMonth(),today.getDate()-6,12)):selectedDate;
  try{
   const p=await getPassword();
-  const [ir,er]=await Promise.all([
-   fetch(API+"history?dimension="+dim+"&date="+encodeURIComponent(date)+"&variable=gridConsumption",{headers:{"X-Dashboard-Password":p}}),
-   fetch(API+"history?dimension="+dim+"&date="+encodeURIComponent(date)+"&variable=feedin",{headers:{"X-Dashboard-Password":p}})
-  ]);
-  const [imp,exp]=await Promise.all([ir.json(),er.json()]);
-  if(ir.status===401||er.status===401){sessionStorage.removeItem("energyPassword");password=null}
-  if(!ir.ok)throw new Error(imp.details||imp.error||"Grid import history unavailable");
-  if(!er.ok)throw new Error(exp.details||exp.error||"Grid export history unavailable");
-  const labels=makeLabels(dim,date,imp.values.length);
-  drawChart("importChart",imp.values,labels,"#ff5964");
-  drawChart("exportChart",exp.values,makeLabels(dim,date,exp.values.length),"#27d889");
+  const response=await fetch(API+"grid-history?dimension="+dim+"&date="+encodeURIComponent(date),{headers:{"X-Dashboard-Password":p},signal:AbortSignal.timeout(30000)});
+  const history=await response.json();
+  if(response.status===401){sessionStorage.removeItem("energyPassword");password=null}
+  if(!response.ok)throw new Error(history.details||history.error||"Grid history unavailable");
+  const labels=makeLabels(dim,date,history.importValues.length);
+  drawChart("importChart",history.importValues,labels,"#ff5964");
+  drawChart("exportChart",history.exportValues,makeLabels(dim,date,history.exportValues.length),"#27d889");
   const prettyMonth=dateFromISO(date).toLocaleDateString("en-GB",{month:"long",year:"numeric"});
   status.textContent=dim==="week"?"Daily totals · week starting "+dateFromISO(date).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"}):dim==="month"?"Daily totals · "+prettyMonth:"Monthly totals · "+date.slice(0,4);
  }catch(e){status.textContent=e.message;document.getElementById("importChart").innerHTML='<text x="320" y="125" fill="#9eafc3" font-size="14" text-anchor="middle">Historical data unavailable</text>';document.getElementById("exportChart").innerHTML='<text x="320" y="125" fill="#9eafc3" font-size="14" text-anchor="middle">Historical data unavailable</text>'}
