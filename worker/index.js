@@ -404,7 +404,7 @@ export default {
         String(londonDateParts().month).padStart(2, "0") + "-" +
         String(londonDateParts().day).padStart(2, "0");
       if (!["week", "month", "year"].includes(dimension) ||
-          !/^\\d{4}-\\d{2}-\\d{2}$/.test(date) ||
+          !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
           !Number.isFinite(Date.parse(date + "T12:00:00Z"))) {
         return new Response(JSON.stringify({ error: "Invalid history period" }), {
           status: 400, headers: { ...cors, "Content-Type": "application/json" }
