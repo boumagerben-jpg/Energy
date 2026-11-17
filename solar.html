@@ -135,12 +135,12 @@ function makeLabels(dim,date,count) {
   const d=dateFromISO(date), out=[];
   if(dim==="week"){
     // Fox's week report is the seven days ending on the selected date.
-    for(let i=count-1;i>=0;i--){const x=new Date(d);x.setDate(x.getDate()-i);out.push({label:x.toLocaleDateString("en-GB",{weekday:"short"}),date:localISO(x)});}
+    for(let i=count-1;i>=0;i--){const x=new Date(d);x.setDate(x.getDate()-i);out.push({label:x.toLocaleDateString("en-GB",{weekday:"short"}),date:localISO(x),current:localISO(x)===todayISO});}
   } else if(dim==="month"){
     const y=d.getFullYear(),m=d.getMonth();
-    for(let i=0;i<count;i++){const x=new Date(y,m,i+1,12);out.push({label:String(i+1),date:localISO(x)});}
+    for(let i=0;i<count;i++){const x=new Date(y,m,i+1,12);out.push({label:String(i+1),date:localISO(x),current:localISO(x)===todayISO});}
   } else {
-    for(let i=0;i<count;i++){const x=new Date(d.getFullYear(),i,15,12);out.push({label:x.toLocaleDateString("en-GB",{month:"short"}),date:localISO(x)});}
+    for(let i=0;i<count;i++){const x=new Date(d.getFullYear(),i,15,12);out.push({label:x.toLocaleDateString("en-GB",{month:"short"}),date:localISO(x),current:x.getFullYear()===today.getFullYear()&&x.getMonth()===today.getMonth()});}
   }
   return out.slice(-count);
 }
@@ -157,7 +157,7 @@ function drawChart(values,labels) {
   }
   vals.forEach((v,i)=>{
     const x=L+i*slot+(slot-barW)/2, h=v/max*plotH, y=T+plotH-h;
-    const isToday=labels[i]?.date===todayISO;
+    const isToday=!!labels[i]?.current;
     s+='<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+barW.toFixed(1)+'" height="'+Math.max(0,h).toFixed(1)+'" rx="3" fill="'+(isToday?"#27d889":"#438fe3")+'"><title>'+esc(labels[i]?.date||labels[i]?.label)+': '+v.toFixed(2)+' kWh</title></rect>';
     const every=vals.length>20?Math.ceil(vals.length/12):1;
     if(i%every===0 || i===vals.length-1) s+='<text x="'+(x+barW/2).toFixed(1)+'" y="'+(H-17)+'" fill="#aebed0" font-size="'+(vals.length>20?9:11)+'" text-anchor="middle">'+esc(labels[i]?.label||"")+'</text>';
