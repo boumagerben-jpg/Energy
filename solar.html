@@ -131,7 +131,7 @@ function renderPicker() {
   p.querySelector("input").addEventListener("change",e=>{
     if(mode==="month") selectedDate=e.target.value+"-15";
     else if(mode==="year") selectedDate=e.target.value+"-06-15";
-    else selectedDate=localISO(new Date(new Date(e.target.value+"T12:00:00").getTime()+6*86400000));
+    else selectedDate=e.target.value;
     loadHistory();
   });
 }
@@ -139,7 +139,7 @@ function makeLabels(dim,date,count) {
   const d=dateFromISO(date), out=[];
   if(dim==="week"){
     // Fox's week report is the seven days ending on the selected date.
-    const start=mode==="week"?mondayOf(d):new Date(d);if(mode==="last7")start.setDate(start.getDate()-6);for(let i=0;i<7;i++){const x=new Date(start);x.setDate(x.getDate()+i);out.push({label:x.toLocaleDateString("en-GB",{weekday:"short"}),date:localISO(x),current:localISO(x)===todayISO});}
+    const start=new Date(d);for(let i=0;i<7;i++){const x=new Date(start);x.setDate(x.getDate()+i);out.push({label:x.toLocaleDateString("en-GB",{weekday:"short"}),date:localISO(x),current:localISO(x)===todayISO});}
   } else if(dim==="month"){
     const y=d.getFullYear(),m=d.getMonth();
     for(let i=0;i<count;i++){const x=new Date(y,m,i+1,12);out.push({label:String(i+1),date:localISO(x),current:localISO(x)===todayISO});}
@@ -166,14 +166,13 @@ function drawChart(values,labels) {
     const every=vals.length>20?Math.ceil(vals.length/12):1;
     if(i%every===0 || i===vals.length-1) s+='<text x="'+(x+barW/2).toFixed(1)+'" y="'+(H-25)+'" fill="#aebed0" font-size="'+(vals.length>20?12:15)+'" text-anchor="middle">'+esc(labels[i]?.label||"")+'</text>';
   });
-  s+='<text x="'+L+'" y="'+(H-5)+'" fill="#8298b1" font-size="10">kW</text>';
   svg.innerHTML=s;
 }
 async function loadHistory() {
   const status=document.getElementById("historyStatus");
   status.textContent="Loading FoxCloud history…";
   const dim=mode==="year"?"year":mode==="month"?"month":"week";
-  const date=mode==="last7"?todayISO:selectedDate;
+  const date=mode==="last7"?localISO(new Date(today.getFullYear(),today.getMonth(),today.getDate()-6,12)):selectedDate;
   try {
     const p=await getPassword();
     const res=await fetch(API+"history?dimension="+dim+"&date="+encodeURIComponent(date),{headers:{"X-Dashboard-Password":p}});
@@ -185,7 +184,7 @@ async function loadHistory() {
     drawChart(vals,labels);
     const prettyDay=dateFromISO(date).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"});
     const prettyMonth=dateFromISO(date).toLocaleDateString("en-GB",{month:"long",year:"numeric"});
-    const weekStart=localISO(mondayOf(dateFromISO(date)));
+    const weekStart=localISO(dateFromISO(date));
     status.textContent=dim==="week"?"Daily generation · week starting "+dateFromISO(weekStart).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"}):dim==="month"?"Daily generation · "+prettyMonth:"Monthly generation · "+date.slice(0,4);
   } catch(e) {
     status.textContent=e.message;
