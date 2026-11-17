@@ -36,7 +36,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:8px
 .legend{display:flex;gap:16px;align-items:center;color:#aebed0;font-size:11px;margin-top:10px}
 .key{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;background:#438fe3}
 .key.today-key{background:#27d889}
-.status{color:#91a6bd;font-size:12px;min-height:18px;margin-top:10px}
+.bar-detail{color:#f4f7fb;font-size:13px;min-height:20px;margin-top:8px;font-weight:600}.status{color:#91a6bd;font-size:12px;min-height:18px;margin-top:10px}
 @media(max-width:420px){body{padding:12px}.panel{padding:14px}.summary{gap:6px}.today-value{font-size:22px}.pv-ring{max-width:58px}}
 </style>
 </head>
@@ -64,7 +64,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:8px
     <button type="button" data-mode="year">Year</button>
   </div>
   <div class="period-picker" id="periodPicker" hidden></div>
-  <div class="chart-wrap"><svg id="chart" viewBox="0 0 640 260" role="img" aria-label="Solar energy generated chart"></svg></div>
+  <div class="chart-wrap"><svg id="chart" viewBox="0 0 640 260" role="img" aria-label="Solar energy generated chart"></svg></div><div class="bar-detail" id="barDetail" aria-live="polite">Tap a bar to see its value</div>
   <div class="legend"><span><i class="key"></i>Generation</span><span><i class="key today-key"></i>Current day</span></div>
   <div class="status" id="historyStatus">Loading solar history…</div>
 </section>
@@ -162,7 +162,7 @@ function drawChart(values,labels) {
   vals.forEach((v,i)=>{
     const x=L+i*slot+(slot-barW)/2, h=v/max*plotH, y=T+plotH-h;
     const isToday=!!labels[i]?.current;
-    s+='<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+barW.toFixed(1)+'" height="'+Math.max(0,h).toFixed(1)+'" rx="3" fill="'+(isToday?"#27d889":"#438fe3")+'"><title>'+esc(labels[i]?.date||labels[i]?.label)+': '+v.toFixed(2)+' kWh</title></rect>';
+    s+='<rect data-value="'+v.toFixed(2)+'" data-label="'+esc(labels[i]?.date||labels[i]?.label||"")+'" x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+barW.toFixed(1)+'" height="'+Math.max(0,h).toFixed(1)+'" rx="3" fill="'+(isToday?"#27d889":"#438fe3")+'" style="cursor:pointer"><title>'+esc(labels[i]?.date||labels[i]?.label)+': '+v.toFixed(2)+' kWh</title></rect>';
     const every=vals.length>20?Math.ceil(vals.length/12):1;
     if(i%every===0 || i===vals.length-1) s+='<text x="'+(x+barW/2).toFixed(1)+'" y="'+(H-25)+'" fill="#aebed0" font-size="'+(vals.length>20?12:15)+'" text-anchor="middle">'+esc(labels[i]?.label||"")+'</text>';
   });
