@@ -185,7 +185,8 @@ async function loadHistory() {
     drawChart(vals,labels);
     const prettyDay=dateFromISO(date).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"});
     const prettyMonth=dateFromISO(date).toLocaleDateString("en-GB",{month:"long",year:"numeric"});
-    const weekStart=localISO(mondayOf(dateFromISO(date)));\n    status.textContent=dim==="week"?"Daily generation · week starting "+dateFromISO(weekStart).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"}):dim==="month"?"Daily generation · "+prettyMonth:"Monthly generation · "+date.slice(0,4);
+    const weekStart=localISO(mondayOf(dateFromISO(date)));
+    status.textContent=dim==="week"?"Daily generation · week starting "+dateFromISO(weekStart).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"}):dim==="month"?"Daily generation · "+prettyMonth:"Monthly generation · "+date.slice(0,4);
   } catch(e) {
     status.textContent=e.message;
     document.getElementById("chart").innerHTML='<text x="320" y="125" fill="#9eafc3" font-size="14" text-anchor="middle">Historical data unavailable</text>';
