@@ -306,6 +306,74 @@ async function queryFoxEnergyReport(env, params) {
   });
 }
 
+
+async function queryFoxGridEnergyReport(env, year, month) {
+  const variables = ["gridConsumption", "feedin"];
+  const path = "/op/v0/device/report/query";
+  const timestamp = Date.now().toString();
+  const signature = md5(path + "\r\n" + env.FOX_API_KEY + "\r\n" + timestamp);
+  const response = await fetch("https://www.foxesscloud.com" + path, {
+    method: "POST",
+    headers: {
+      token: env.FOX_API_KEY, timestamp, signature, lang: "en",
+      "Content-Type": "application/json", "User-Agent": "Mozilla/5.0"
+    },
+    body: JSON.stringify({ sn: env.FOX_DEVICE_SN, year, month, dimension: "month", variables }),
+    signal: AbortSignal.timeout(20000)
+  });
+  const result = await response.json();
+  if (!response.ok || result.errno !== 0) {
+    throw new Error("Fox ESS grid report failed: " + JSON.stringify(result));
+  }
+  const output = {};
+  for (const variable of variables) {
+    const item = (result.result || []).find(entry => String(entry.variable || "").toLowerCase() === variable.toLowerCase());
+    if (!item || !Array.isArray(item.values)) {
+      throw new Error("Fox ESS grid report did not include " + variable + ". Returned: " + (result.result || []).map(entry => entry.variable).join(", "));
+    }
+    output[variable] = item.values.map(value => {
+      if (value == null) return null;
+      const n = Number(value);
+      return Number.isFinite(n) ? n : null;
+    });
+  }
+  return output;
+}
+
+async function getFoxGridHistoryReport(env, date, dimension) {
+  const [year, month, day] = date.split("-").map(Number);
+  if (dimension === "year") {
+    const reports = await Promise.all(Array.from({ length: 12 }, (_, i) => queryFoxGridEnergyReport(env, year, i + 1)));
+    return {
+      dimension, date,
+      importValues: reports.map(r => r.gridConsumption.reduce((sum, v) => sum + (v == null ? 0 : v), 0)),
+      exportValues: reports.map(r => r.feedin.reduce((sum, v) => sum + (v == null ? 0 : v), 0)),
+      updatedAt: new Date().toISOString()
+    };
+  }
+  if (dimension === "week") {
+    const start = new Date(Date.UTC(year, month - 1, day));
+    const dates = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(start); d.setUTCDate(d.getUTCDate() + i);
+      return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() };
+    });
+    const keys = [...new Set(dates.map(d => d.year + "-" + d.month))];
+    const reports = await Promise.all(keys.map(async key => {
+      const [y, m] = key.split("-").map(Number);
+      return [key, await queryFoxGridEnergyReport(env, y, m)];
+    }));
+    const byMonth = new Map(reports);
+    return {
+      dimension, date,
+      importValues: dates.map(d => byMonth.get(d.year + "-" + d.month).gridConsumption[d.day - 1] ?? null),
+      exportValues: dates.map(d => byMonth.get(d.year + "-" + d.month).feedin[d.day - 1] ?? null),
+      updatedAt: new Date().toISOString()
+    };
+  }
+  const report = await queryFoxGridEnergyReport(env, year, month);
+  return { dimension, date, importValues: report.gridConsumption, exportValues: report.feedin, updatedAt: new Date().toISOString() };
+}
+
 async function getFoxHistoryReport(env, date, dimension, variable = "PVEnergyTotal") {
   const [year, month, day] = date.split("-").map(Number);
   let values;
@@ -426,6 +494,40 @@ export default {
       return new Response("Incorrect dashboard password", { status: 401, headers: cors });
     }
 
+
+
+    if (url.pathname === "/grid-history") {
+      const dimension = url.searchParams.get("dimension") || "week";
+      const date = url.searchParams.get("date") || (() => {
+        const d = londonDateParts();
+        return d.year + "-" + String(d.month).padStart(2, "0") + "-" + String(d.day).padStart(2, "0");
+      })();
+      if (!["week", "month", "year"].includes(dimension) ||
+          !/^\\d{4}-\\d{2}-\\d{2}$/.test(date) ||
+          !Number.isFinite(Date.parse(date + "T12:00:00Z"))) {
+        return new Response(JSON.stringify({ error: "Invalid grid history period" }), {
+          status: 400, headers: { ...cors, "Content-Type": "application/json" }
+        });
+      }
+      const cacheKey = "grid:" + dimension + ":" + date;
+      const cached = cachedHistory.get(cacheKey);
+      if (cached && Date.now() - cached.at < 900000) {
+        return new Response(JSON.stringify(cached.data), {
+          headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" }
+        });
+      }
+      try {
+        const history = await getFoxGridHistoryReport(env, date, dimension);
+        cachedHistory.set(cacheKey, { data: history, at: Date.now() });
+        return new Response(JSON.stringify(history), {
+          headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" }
+        });
+      } catch (error) {
+        return new Response(JSON.stringify({ error: "Fox ESS grid history failed", details: error.message }), {
+          status: 502, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" }
+        });
+      }
+    }
 
     if (isHistory) {
       const dimension = url.searchParams.get("dimension") || "week";
