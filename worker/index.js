@@ -295,9 +295,9 @@ async function queryFoxEnergyReport(env, params) {
   if (!response.ok || result.errno !== 0) {
     throw new Error("Fox ESS historical report failed: " + JSON.stringify(result));
   }
-  const item = (result.result || []).find(entry => entry.variable === variable);
+  const item = (result.result || []).find(entry => String(entry.variable || "").toLowerCase() === variable.toLowerCase());
   if (!item || !Array.isArray(item.values)) {
-    throw new Error("Fox ESS historical report did not include PV energy values.");
+    throw new Error("Fox ESS historical report did not include " + variable + " values. Returned: " + (result.result || []).map(entry => entry.variable).join(", "));
   }
   return item.values.map(value => {
     if (value == null) return null;
