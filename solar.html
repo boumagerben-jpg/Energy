@@ -8,15 +8,15 @@
 <style>
 *{box-sizing:border-box}
 body{margin:0;padding:16px;background:#101b2b;color:#f4f7fb;font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:760px;margin-inline:auto}
-header{display:flex;align-items:center;gap:12px;padding:8px 0 22px}
-.back{color:#9fc5ef;text-decoration:none;font-size:15px;white-space:nowrap}
-h1{font-size:25px;margin:0}.sub{color:#9eafc3;font-size:13px;margin-top:4px}
+header{display:flex;align-items:center;justify-content:space-between;padding:8px 0 22px}
+.header-title h1{font-size:25px;margin:0}.home-button{display:grid;place-items:center;width:40px;height:40px;border:1px solid #40566f;border-radius:12px;background:#1b2b40;color:#dce7f3;text-decoration:none;font-size:21px;flex:0 0 auto}
+.sub{color:#9eafc3;font-size:13px;margin-top:4px}
 .panel{background:#1b2b40;border:1px solid #30445c;border-radius:18px;padding:18px;margin-bottom:16px}
 .summary{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr);align-items:center;gap:10px}
-.gauge-wrap{position:relative;width:100%;max-width:300px;margin:auto}
+.gauge-wrap{position:relative;width:100%;max-width:270px;margin:auto}
 .gauge{display:block;width:100%;height:auto}
-.gauge-value{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;padding-top:14px}
-.current{font-size:clamp(29px,8vw,43px);font-weight:800;letter-spacing:-1.5px;line-height:1}
+.gauge-value{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column}
+.current{font-size:clamp(23px,6vw,31px);font-weight:800;letter-spacing:-1.5px;line-height:1}
 .current span{font-size:15px;color:#aebed0;font-weight:500;letter-spacing:0}
 .gauge-caption{font-size:12px;color:#aebed0;margin-top:8px}
 .max-label{display:flex;justify-content:space-between;color:#9eafc3;font-size:11px;margin-top:-6px}
@@ -41,13 +41,13 @@ h1{font-size:25px;margin:0}.sub{color:#9eafc3;font-size:13px;margin-top:4px}
 </style>
 </head>
 <body>
-<header><a class="back" href="index.html">‹ Home</a><div><h1>Solar generation</h1><div class="sub">11 panels · 5.39 kWp maximum</div></div></header>
+<header><div class="header-title"><h1>Solar generation</h1><div class="sub">11 panels · 5.39 kWp maximum</div></div><a class="home-button" href="index.html" aria-label="Back to home" title="Home">⌂</a></header>
 <section class="panel summary">
   <div>
     <div class="gauge-wrap">
-      <svg class="gauge" viewBox="0 0 240 150" role="img" aria-label="Current solar generation gauge">
-        <path d="M25 125 A95 95 0 0 1 215 125" fill="none" stroke="#53657a" stroke-width="13" stroke-linecap="round"/>
-        <path id="gaugeGreen" d="M25 125 A95 95 0 0 1 215 125" fill="none" stroke="#27d889" stroke-width="13" stroke-linecap="round" pathLength="100" stroke-dasharray="0 100"/>
+      <svg class="gauge" viewBox="0 0 240 240" role="img" aria-label="Current solar generation gauge">
+        <circle cx="120" cy="120" r="91" fill="none" stroke="#53657a" stroke-width="13" pathLength="100" stroke-dasharray="88 12" transform="rotate(126 120 120)"/>
+        <circle id="gaugeGreen" cx="120" cy="120" r="91" fill="none" stroke="#27d889" stroke-width="13" stroke-linecap="round" pathLength="100" stroke-dasharray="0 100" transform="rotate(126 120 120)"/>
       </svg>
       <div class="gauge-value"><div class="current" id="currentPower">— <span>kW</span></div><div class="gauge-caption">Generating now</div></div>
     </div>
@@ -109,7 +109,7 @@ async function loadLive() {
     (live.result?.[0]?.datas || []).forEach(x=>vals[x.variable]=Number(x.value||0));
     const kw = Math.max(0,vals.pvPower||0);
     document.getElementById("currentPower").innerHTML = kw.toFixed(2) + " <span>kW</span>";
-    document.getElementById("gaugeGreen").setAttribute("stroke-dasharray",(Math.min(kw,MAX_KW)/MAX_KW*100).toFixed(2)+" 100");
+    document.getElementById("gaugeGreen").setAttribute("stroke-dasharray",(Math.min(kw,MAX_KW)/MAX_KW*88).toFixed(2)+" 100");
     document.getElementById("todayEnergy").textContent = daily.solarKWh==null ? "—" : Number(daily.solarKWh).toFixed(2);
   } catch(e) {
     document.getElementById("currentPower").innerHTML = "— <span>kW</span>";
@@ -145,7 +145,7 @@ function makeLabels(dim,date,count) {
   return out.slice(-count);
 }
 function drawChart(values,labels) {
-  const svg=document.getElementById("chart"), W=640,H=260,L=42,R=12,T=12,B=42;
+  const svg=document.getElementById("chart"), W=640,H=260,L=58,R=12,T=12,B=46;
   const vals=values.map(v=>v==null?0:Math.max(0,v));
   const max=Math.max(1,...vals)*1.12, plotH=H-T-B, plotW=W-L-R;
   const slot=plotW/Math.max(1,vals.length), barW=Math.max(3,Math.min(38,slot*.58));
@@ -153,7 +153,7 @@ function drawChart(values,labels) {
   for(let i=0;i<=4;i++){
     const y=T+plotH*i/4, v=max*(1-i/4);
     s+='<line x1="'+L+'" y1="'+y+'" x2="'+(W-R)+'" y2="'+y+'" stroke="#40536a" stroke-width="1"/>';
-    s+='<text x="'+(L-8)+'" y="'+(y+4)+'" fill="#9eafc3" font-size="11" text-anchor="end">'+v.toFixed(max<10?1:0)+'</text>';
+    s+='<text x="'+(L-8)+'" y="'+(y+4)+'" fill="#9eafc3" font-size="15" text-anchor="end">'+v.toFixed(max<10?1:0)+'</text>';
   }
   vals.forEach((v,i)=>{
     const x=L+i*slot+(slot-barW)/2, h=v/max*plotH, y=T+plotH-h;
@@ -179,7 +179,9 @@ async function loadHistory() {
     const vals=data.values||[];
     const labels=makeLabels(dim,date,vals.length);
     drawChart(vals,labels);
-    status.textContent=dim==="week"?"Daily generation · seven days ending "+date:dim==="month"?"Daily generation · "+date.slice(0,7):"Monthly generation · "+date.slice(0,4);
+    const prettyDay=dateFromISO(date).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"});
+    const prettyMonth=dateFromISO(date).toLocaleDateString("en-GB",{month:"long",year:"numeric"});
+    status.textContent=dim==="week"?"Daily generation · week ending "+prettyDay:dim==="month"?"Daily generation · "+prettyMonth:"Monthly generation · "+date.slice(0,4);
   } catch(e) {
     status.textContent=e.message;
     document.getElementById("chart").innerHTML='<text x="320" y="125" fill="#9eafc3" font-size="14" text-anchor="middle">Historical data unavailable</text>';
