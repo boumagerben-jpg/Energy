@@ -137,12 +137,12 @@ function drawChart(id,values,labels,colour){
  svg.innerHTML=s;
 }
 async function loadHistory(){
- const status=document.getElementById("historyStatus");status.textContent="Loading FoxCloud grid history…";
+ const status=document.getElementById("historyStatus");status.textContent="Contacting FoxCloud for grid history…";
  const dim=mode==="year"?"year":mode==="month"?"month":"week";
  const date=mode==="last7"?localISO(new Date(today.getFullYear(),today.getMonth(),today.getDate()-6,12)):selectedDate;
  try{
   const p=await getPassword();
-  const response=await fetch(API+"grid-history?dimension="+dim+"&date="+encodeURIComponent(date),{headers:{"X-Dashboard-Password":p},signal:AbortSignal.timeout(30000)});
+  const response=await fetch(API+"grid-history?dimension="+dim+"&date="+encodeURIComponent(date),{headers:{"X-Dashboard-Password":p},signal:AbortSignal.timeout(18000)});
   const history=await response.json();
   if(response.status===401){sessionStorage.removeItem("energyPassword");password=null}
   if(!response.ok)throw new Error(history.details||history.error||"Grid history unavailable");
