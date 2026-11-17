@@ -93,32 +93,53 @@ async function getPassword() {
   return password;
 }
 async function loadLive() {
+  const p = await getPassword();
+  // Render the live PV strings as soon as the real-time endpoint responds.
+  // Do not let a slow or failed daily report block the live readings.
   try {
-    const p = await getPassword();
-    const [liveRes,dailyRes] = await Promise.all([
-      fetch(API,{headers:{"X-Dashboard-Password":p}}),
-      fetch(API+"daily",{headers:{"X-Dashboard-Password":p}})
-    ]);
-    if (liveRes.status===401 || dailyRes.status===401) {
+    const liveRes = await fetch(API,{headers:{"X-Dashboard-Password":p},signal:AbortSignal.timeout(15000)});
+    const live = await liveRes.json();
+    if (liveRes.status===401) {
       sessionStorage.removeItem("energyPassword"); password=null;
       throw new Error("Password incorrect. Refresh and try again.");
     }
-    const live = await liveRes.json(), daily = await dailyRes.json();
     if (!liveRes.ok) throw new Error(live.details || live.error || "Live data unavailable");
-    if (!dailyRes.ok) throw new Error(daily.details || daily.error || "Daily yield unavailable");
     const vals = {};
     (live.result?.[0]?.datas || []).forEach(x=>vals[String(x.variable||"").toLowerCase()]=Number(x.value||0));
-    const kw = Math.max(0,vals.pvpower||0);
+    const kw = Math.max(0,Number(vals.pvpower||0));
     const pvNow=[Number(vals.pv1power||0),Number(vals.pv2power||0),Number(vals.pv3power||0)];
-    const pvYield=[daily.pv1KWh,daily.pv2KWh,daily.pv3KWh];
-    [1,2,3].forEach((n,i)=>{const cap=(n===3?3:4)*0.49;document.getElementById("pv"+n+"Arc").setAttribute("stroke-dasharray",(Math.min(pvNow[i],cap)/cap*88).toFixed(2)+" 100");document.getElementById("pv"+n+"Current").textContent=pvNow[i].toFixed(2)+" kW";document.getElementById("pv"+n+"Daily").textContent=pvYield[i]==null?"—":Number(pvYield[i]).toFixed(1);});
+    [1,2,3].forEach((n,i)=>{
+      const cap=(n===3?3:4)*0.49;
+      document.getElementById("pv"+n+"Arc").setAttribute("stroke-dasharray",(Math.min(pvNow[i],cap)/cap*88).toFixed(2)+" 100");
+      document.getElementById("pv"+n+"Current").textContent=pvNow[i].toFixed(2)+" kW";
+      // Fox's supported energy report does not provide separate PV-string daily totals.
+      document.getElementById("pv"+n+"Daily").textContent="—";
+    });
     document.getElementById("currentPower").innerHTML = kw.toFixed(2) + " <span>kW</span>";
     document.getElementById("gaugeGreen").setAttribute("stroke-dasharray",(Math.min(kw,MAX_KW)/MAX_KW*88).toFixed(2)+" 100");
-    document.getElementById("todayEnergy").textContent = daily.solarKWh==null ? "—" : Number(daily.solarKWh).toFixed(2);
+    document.getElementById("historyStatus").textContent="Live readings updated";
   } catch(e) {
     document.getElementById("currentPower").innerHTML = "— <span>kW</span>";
-    document.getElementById("todayEnergy").textContent = "—";
-    document.getElementById("historyStatus").textContent = e.message;
+    [1,2,3].forEach(n=>{
+      document.getElementById("pv"+n+"Current").textContent="— kW";
+      document.getElementById("pv"+n+"Daily").textContent="—";
+    });
+    document.getElementById("historyStatus").textContent=e.message;
+    return;
+  }
+  // Daily total is independent of the live PV string readings.
+  try {
+    const dailyRes=await fetch(API+"daily",{headers:{"X-Dashboard-Password":p},signal:AbortSignal.timeout(15000)});
+    const daily=await dailyRes.json();
+    if(dailyRes.status===401) {
+      sessionStorage.removeItem("energyPassword"); password=null;
+      throw new Error("Password incorrect. Refresh and try again.");
+    }
+    if(!dailyRes.ok) throw new Error(daily.details || daily.error || "Daily yield unavailable");
+    document.getElementById("todayEnergy").textContent=daily.solarKWh==null?"—":Number(daily.solarKWh).toFixed(2);
+  } catch(e) {
+    document.getElementById("todayEnergy").textContent="—";
+    document.getElementById("historyStatus").textContent="Live readings available; daily total: "+e.message;
   }
 }
 function renderPicker() {
