@@ -64,7 +64,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:8px
     <button type="button" data-mode="year">Year</button>
   </div>
   <div class="period-picker" id="periodPicker" hidden></div>
-  <div class="chart-wrap"><svg id="chart" viewBox="0 0 640 260" role="img" aria-label="Solar energy generated chart"></svg></div><div class="bar-detail" id="barDetail" aria-live="polite">Tap a bar to see its value</div>
+  <div class="chart-wrap"><svg id="chart" viewBox="0 0 640 260" role="img" aria-label="Solar energy generated chart"></svg></div>
   <div class="legend"><span><i class="key"></i>Generation</span><span><i class="key today-key"></i>Current day</span></div>
   <div class="status" id="historyStatus">Loading solar history…</div>
 </section>
@@ -148,6 +148,17 @@ function makeLabels(dim,date,count) {
   }
   return out.slice(-count);
 }
+
+function showBarValue(svg,bar){
+  const old=svg.querySelector("#barValuePopup");if(old)old.remove();
+  const x=Number(bar.getAttribute("x")),y=Number(bar.getAttribute("y")),w=Number(bar.getAttribute("width"));
+  const cx=x+w/2,boxW=112,boxH=30,px=Math.max(4,Math.min(640-boxW-4,cx-boxW/2)),py=Math.max(4,y-boxH-8);
+  const g=document.createElementNS("http://www.w3.org/2000/svg","g");g.setAttribute("id","barValuePopup");g.setAttribute("pointer-events","none");
+  const r=document.createElementNS("http://www.w3.org/2000/svg","rect");r.setAttribute("x",px);r.setAttribute("y",py);r.setAttribute("width",boxW);r.setAttribute("height",boxH);r.setAttribute("rx","7");r.setAttribute("fill","#f4f7fb");r.setAttribute("stroke","#17263a");r.setAttribute("stroke-width","1.5");
+  const t=document.createElementNS("http://www.w3.org/2000/svg","text");t.setAttribute("x",px+boxW/2);t.setAttribute("y",py+20);t.setAttribute("fill","#101b2b");t.setAttribute("font-size","14");t.setAttribute("font-weight","700");t.setAttribute("text-anchor","middle");t.textContent=Number(bar.dataset.value).toFixed(2)+" kWh";
+  g.append(r,t);svg.append(g);
+}
+
 function drawChart(values,labels) {
   const svg=document.getElementById("chart"), W=640,H=280,L=58,R=12,T=12,B=62;
   const vals=values.map(v=>v==null?0:Math.max(0,v));
@@ -191,6 +202,7 @@ async function loadHistory() {
     document.getElementById("chart").innerHTML='<text x="320" y="125" fill="#9eafc3" font-size="14" text-anchor="middle">Historical data unavailable</text>';
   }
 }
+document.getElementById("chart").addEventListener("click",e=>{const bar=e.target.closest("rect[data-value]");if(bar)showBarValue(e.currentTarget,bar);});
 document.querySelectorAll("[data-mode]").forEach(btn=>btn.addEventListener("click",()=>{
   mode=btn.dataset.mode;
   document.querySelectorAll("[data-mode]").forEach(b=>b.classList.toggle("active",b===btn));
