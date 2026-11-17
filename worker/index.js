@@ -274,7 +274,7 @@ async function getFoxDailyReport(env) {
   const { year, month, day } = londonDateParts();
   const path = "/op/v0/device/report/query";
   const timestamp = Date.now().toString();
-  const signature = md5(path + "\\r\\n" + env.FOX_API_KEY + "\\r\\n" + timestamp);
+  const signature = md5(path + "\r\n" + env.FOX_API_KEY + "\r\n" + timestamp);
   const response = await fetch("https://www.foxesscloud.com" + path, {
     method: "POST",
     headers: {
