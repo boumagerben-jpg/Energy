@@ -272,8 +272,7 @@ function londonDateParts() {
 }
 
 
-async function getFoxHistoryReport(env, date, dimension) {
-  const [year, month, day] = date.split("-").map(Number);
+async function queryFoxEnergyReport(env, params) {
   const path = "/op/v0/device/report/query";
   const timestamp = Date.now().toString();
   const signature = md5(path + "\r\n" + env.FOX_API_KEY + "\r\n" + timestamp);
@@ -287,14 +286,7 @@ async function getFoxHistoryReport(env, date, dimension) {
       "Content-Type": "application/json",
       "User-Agent": "Mozilla/5.0"
     },
-    body: JSON.stringify({
-      sn: env.FOX_DEVICE_SN,
-      year,
-      month,
-      day,
-      dimension,
-      variables: ["PVEnergyTotal"]
-    })
+    body: JSON.stringify({ sn: env.FOX_DEVICE_SN, ...params, variables: ["PVEnergyTotal"] })
   });
   const result = await response.json();
   if (!response.ok || result.errno !== 0) {
@@ -304,12 +296,43 @@ async function getFoxHistoryReport(env, date, dimension) {
   if (!item || !Array.isArray(item.values)) {
     throw new Error("Fox ESS historical report did not include PV energy values.");
   }
-  return {
-    dimension,
-    date,
-    values: item.values.map(value => value == null ? null : Number(value)).map(value => Number.isFinite(value) ? value : null),
-    updatedAt: new Date().toISOString()
-  };
+  return item.values.map(value => {
+    if (value == null) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  });
+}
+
+async function getFoxHistoryReport(env, date, dimension) {
+  const [year, month, day] = date.split("-").map(Number);
+  let values;
+  if (dimension === "week") {
+    // Build the seven daily bars from the same monthly report data that powers
+    // the working month chart. Fox's weekly report can return an empty series
+    // for some devices despite a successful API response.
+    const end = new Date(Date.UTC(year, month - 1, day));
+    const dates = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(end);
+      d.setUTCDate(d.getUTCDate() - 6 + i);
+      return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() };
+    });
+    const monthKeys = [...new Set(dates.map(d => d.year + "-" + d.month))];
+    const reports = await Promise.all(monthKeys.map(async key => {
+      const [reportYear, reportMonth] = key.split("-").map(Number);
+      return [key, await queryFoxEnergyReport(env, { year: reportYear, month: reportMonth, dimension: "month" })];
+    }));
+    const byMonth = new Map(reports);
+    values = dates.map(d => {
+      const series = byMonth.get(d.year + "-" + d.month) || [];
+      return series[d.day - 1] ?? null;
+    });
+  } else if (dimension === "year") {
+    // The yearly Fox report is keyed by year; omit month/day.
+    values = await queryFoxEnergyReport(env, { year, dimension: "year" });
+  } else {
+    values = await queryFoxEnergyReport(env, { year, month, dimension: "month" });
+  }
+  return { dimension, date, values, updatedAt: new Date().toISOString() };
 }
 
 async function getFoxDailyReport(env) {
