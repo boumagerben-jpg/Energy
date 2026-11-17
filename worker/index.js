@@ -8,6 +8,7 @@ let cachedData = null;
 let cachedAt = 0;
 let cachedDaily = null;
 let cachedDailyAt = 0;
+const cachedHistory = new Map();
 
 function md5(input) {
   const bytes = new TextEncoder().encode(input);
@@ -270,6 +271,47 @@ function londonDateParts() {
   return { year: Number(get("year")), month: Number(get("month")), day: Number(get("day")) };
 }
 
+
+async function getFoxHistoryReport(env, date, dimension) {
+  const [year, month, day] = date.split("-").map(Number);
+  const path = "/op/v0/device/report/query";
+  const timestamp = Date.now().toString();
+  const signature = md5(path + "\r\n" + env.FOX_API_KEY + "\r\n" + timestamp);
+  const response = await fetch("https://www.foxesscloud.com" + path, {
+    method: "POST",
+    headers: {
+      token: env.FOX_API_KEY,
+      timestamp,
+      signature,
+      lang: "en",
+      "Content-Type": "application/json",
+      "User-Agent": "Mozilla/5.0"
+    },
+    body: JSON.stringify({
+      sn: env.FOX_DEVICE_SN,
+      year,
+      month,
+      day,
+      dimension,
+      variables: ["PVEnergyTotal"]
+    })
+  });
+  const result = await response.json();
+  if (!response.ok || result.errno !== 0) {
+    throw new Error("Fox ESS historical report failed: " + JSON.stringify(result));
+  }
+  const item = (result.result || []).find(entry => entry.variable === "PVEnergyTotal");
+  if (!item || !Array.isArray(item.values)) {
+    throw new Error("Fox ESS historical report did not include PV energy values.");
+  }
+  return {
+    dimension,
+    date,
+    values: item.values.map(value => value == null ? null : Number(value)).map(value => Number.isFinite(value) ? value : null),
+    updatedAt: new Date().toISOString()
+  };
+}
+
 async function getFoxDailyReport(env) {
   const { year, month, day } = londonDateParts();
   const path = "/op/v0/device/report/query";
@@ -339,6 +381,7 @@ export default {
     const url = new URL(request.url);
     const isHypervolt = url.pathname === "/hypervolt";
     const isDaily = url.pathname === "/daily";
+    const isHistory = url.pathname === "/history";
 
     if (!env.DASHBOARD_PASSWORD) {
       return new Response("Worker secrets are missing", { status: 500, headers: cors });
@@ -352,6 +395,42 @@ export default {
 
     if (request.headers.get("X-Dashboard-Password") !== env.DASHBOARD_PASSWORD) {
       return new Response("Incorrect dashboard password", { status: 401, headers: cors });
+    }
+
+
+    if (isHistory) {
+      const dimension = url.searchParams.get("dimension") || "week";
+      const date = url.searchParams.get("date") || londonDateParts().year + "-" +
+        String(londonDateParts().month).padStart(2, "0") + "-" +
+        String(londonDateParts().day).padStart(2, "0");
+      if (!["week", "month", "year"].includes(dimension) ||
+          !/^\\d{4}-\\d{2}-\\d{2}$/.test(date) ||
+          !Number.isFinite(Date.parse(date + "T12:00:00Z"))) {
+        return new Response(JSON.stringify({ error: "Invalid history period" }), {
+          status: 400, headers: { ...cors, "Content-Type": "application/json" }
+        });
+      }
+      const cacheKey = dimension + ":" + date;
+      const cached = cachedHistory.get(cacheKey);
+      if (cached && Date.now() - cached.at < 900000) {
+        return new Response(JSON.stringify(cached.data), {
+          headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" }
+        });
+      }
+      try {
+        const history = await getFoxHistoryReport(env, date, dimension);
+        cachedHistory.set(cacheKey, { data: history, at: Date.now() });
+        return new Response(JSON.stringify(history), {
+          headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" }
+        });
+      } catch (error) {
+        return new Response(JSON.stringify({
+          error: "Fox ESS historical report failed",
+          details: error.message
+        }), {
+          status: 502, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" }
+        });
+      }
     }
 
     if (isDaily) {
