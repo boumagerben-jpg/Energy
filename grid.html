@@ -154,7 +154,8 @@ async function loadHistory(){
  }catch(e){status.textContent=e.message;document.getElementById("importChart").innerHTML='<text x="320" y="125" fill="#9eafc3" font-size="14" text-anchor="middle">Historical data unavailable</text>';document.getElementById("exportChart").innerHTML='<text x="320" y="125" fill="#9eafc3" font-size="14" text-anchor="middle">Historical data unavailable</text>'}
 }
 document.querySelectorAll("[data-mode]").forEach(btn=>btn.addEventListener("click",()=>{mode=btn.dataset.mode;document.querySelectorAll("[data-mode]").forEach(b=>b.classList.toggle("active",b===btn));if(mode==="last7")selectedDate=todayISO;if(mode==="week")selectedDate=localISO(mondayOf(dateFromISO(todayISO)));renderPicker();loadHistory()}));
-["import","export"].forEach(kind=>document.getElementById(kind+"Chart").addEventListener("click",e=>{const bar=e.target.closest("rect[data-value]");if(bar)showBarValue(e.currentTarget,bar);}));\nrenderPicker();loadLive();loadHistory();setInterval(loadLive,300000);
+["import","export"].forEach(kind=>document.getElementById(kind+"Chart").addEventListener("click",e=>{const bar=e.target.closest("rect[data-value]");if(bar)showBarValue(e.currentTarget,bar);}));
+renderPicker();loadLive();loadHistory();setInterval(loadLive,300000);
 </script>
 </body>
 </html>
