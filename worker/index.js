@@ -310,10 +310,10 @@ async function getFoxHistoryReport(env, date, dimension) {
     // Build the seven daily bars from the same monthly report data that powers
     // the working month chart. Fox's weekly report can return an empty series
     // for some devices despite a successful API response.
-    const end = new Date(Date.UTC(year, month - 1, day));
+    const start = new Date(Date.UTC(year, month - 1, day));
     const dates = Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(end);
-      d.setUTCDate(d.getUTCDate() - 6 + i);
+      const d = new Date(start);
+      d.setUTCDate(d.getUTCDate() + i);
       return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() };
     });
     const monthKeys = [...new Set(dates.map(d => d.year + "-" + d.month))];
@@ -327,8 +327,11 @@ async function getFoxHistoryReport(env, date, dimension) {
       return series[d.day - 1] ?? null;
     });
   } else if (dimension === "year") {
-    // The yearly Fox report is keyed by year; omit month/day.
-    values = await queryFoxEnergyReport(env, { year, dimension: "year" });
+    // Build monthly totals from the daily values returned by each monthly report.
+    values = await Promise.all(Array.from({ length: 12 }, async (_, i) => {
+      const series = await queryFoxEnergyReport(env, { year, month: i + 1, dimension: "month" });
+      return series.reduce((sum, value) => sum + (value == null ? 0 : value), 0);
+    }));
   } else {
     values = await queryFoxEnergyReport(env, { year, month, dimension: "month" });
   }
