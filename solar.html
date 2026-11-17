@@ -59,9 +59,9 @@ header{display:flex;align-items:center;justify-content:space-between;padding:8px
   <h2 class="section-title">Solar generation history</h2>
   <div class="controls" role="group" aria-label="Chart period">
     <button type="button" data-mode="last7" class="active">Last 7 days</button>
-    <button type="button" data-mode="week">Select week</button>
-    <button type="button" data-mode="month">Select month</button>
-    <button type="button" data-mode="year">Select year</button>
+    <button type="button" data-mode="week">Week</button>
+    <button type="button" data-mode="month">Month</button>
+    <button type="button" data-mode="year">Year</button>
   </div>
   <div class="period-picker" id="periodPicker" hidden></div>
   <div class="chart-wrap"><svg id="chart" viewBox="0 0 640 260" role="img" aria-label="Solar energy generated chart"></svg></div>
@@ -195,6 +195,7 @@ document.querySelectorAll("[data-mode]").forEach(btn=>btn.addEventListener("clic
   mode=btn.dataset.mode;
   document.querySelectorAll("[data-mode]").forEach(b=>b.classList.toggle("active",b===btn));
   if(mode==="last7") selectedDate=todayISO;
+  if(mode==="week") selectedDate=localISO(mondayOf(dateFromISO(todayISO)));
   renderPicker();loadHistory();
 }));
 renderPicker();
