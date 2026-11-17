@@ -11,7 +11,8 @@ body{margin:0;background:#101b2b;color:#f4f7fb;font-family:-apple-system,BlinkMa
 header{padding:12px 2px 24px}.page-header{position:relative}h1{font-size:27px;margin:0 0 6px}.sub{color:#9eafc3;font-size:13px}.refresh-button{position:absolute;right:0;top:8px;width:38px;height:38px;border:1px solid #40566f;border-radius:11px;background:#1b2b40;color:#f4f7fb;font-size:25px;line-height:1;cursor:pointer}.refresh-button:active{background:#30445c}
 .energy-map{position:relative;width:100%;max-width:560px;aspect-ratio:2/3;margin:0 auto}
 .energy-grid{position:absolute;inset:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(3,minmax(0,1fr));column-gap:1.25%;row-gap:1.25%;align-items:center;justify-items:center}
-.card{position:relative;z-index:1;background:#1b2b40;border:1px solid #30445c;border-radius:16px;padding:12% clamp(7px,2vw,14px) 10%;min-width:0;min-height:0;width:144%;height:120%;aspect-ratio:auto;align-self:center;display:flex;flex-direction:column;justify-content:space-between;align-items:center;text-align:center;overflow:hidden}
+.card{position:relative;z-index:1;background:#1b2b40;border:1px solid #30445c;border-radius:16px;padding:12% clamp(7px,2vw,14px) 10%;min-width:0;min-height:0;width:120%;height:auto;aspect-ratio:1;align-self:center;display:flex;flex-direction:column;justify-content:space-between;align-items:center;text-align:center;overflow:hidden}
+#solarcard,#evcard,#gridcard,#batterycard{width:144%;height:48%;aspect-ratio:auto}
 .card .label{font-size:clamp(14px,3.5vw,18px);font-weight:700;color:#f0f5fb;margin:0;line-height:1.2;text-align:center;width:100%}
 .value{display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:clamp(22px,6vw,36px);font-weight:750;letter-spacing:-.7px;line-height:1.02;white-space:nowrap}
 .rate-pair{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:center;justify-items:center;gap:clamp(2px,1vw,8px);width:100%;min-width:0}
@@ -58,14 +59,14 @@ footer{color:#778ba3;font-size:11px;text-align:center;margin:22px 0}
 </header>
 <div class="energy-map" aria-label="Live home energy flow">
 <svg class="flow-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-  <path id="solarflow" d="M16.25 29.25 V33.125 H30.5 V37"/>
-  <path id="evflow" d="M83.75 29.25 V33.125 H69.5 V37"/>
-  <path id="gridflow" d="M16.25 70.75 V66.875 H30.5 V63"/>
-  <path id="batteryflow" d="M83.75 70.75 V66.875 H69.5 V63"/>
+  <path id="solarflow" d="M16.25 24.05 V33.125 H30.5 V37"/>
+  <path id="evflow" d="M83.75 24.05 V33.125 H69.5 V37"/>
+  <path id="gridflow" d="M16.25 75.95 V66.875 H30.5 V63"/>
+  <path id="batteryflow" d="M83.75 75.95 V66.875 H69.5 V63"/>
 </svg>
 <div class="energy-grid">
   <div class="card" id="solarcard"><div class="label">☀️ Solar</div><div class="rate-pair"><div><div class="rate-label">Current</div><div class="value" id="solar">— <span class="unit">kW</span></div></div><div><div class="rate-label">Today</div><div class="value" id="solartoday">0.00 <span class="unit">kWh</span></div></div></div><div class="note">Generation</div></div>
-  <div class="card" id="evcard"><div class="label">🚗 EV charging</div><div class="rate-pair"><div><div class="rate-label">Current</div><div class="value" id="ev">— <span class="unit">kW</span></div></div><div><div class="rate-label">Today</div><div class="value" id="evtoday">0.00 <span class="unit">kWh</span></div></div></div><div class="note" id="evstatus">Not charging</div></div>
+  <div class="card" id="evcard"><div class="label">🚗 EV charging</div><div class="rate-pair"><div><div class="rate-label">Current</div><div class="value" id="ev">— <span class="unit">kW</span></div></div><div><div class="rate-label">Today</div><div class="value" id="evtoday">— <span class="unit">kWh</span></div></div></div><div class="note" id="evstatus">Not charging</div></div>
   <div class="card" id="homecard"><div class="label">🏠 Home</div><div class="value" id="home">— <span class="unit">kW</span></div><div class="note">Consumption</div></div>
   <div class="card" id="gridcard"><div class="label">⚡ Grid</div><div class="rate-pair"><div><div class="rate-label">Current</div><div class="value" id="grid">— <span class="unit">kW</span></div></div><div><div class="rate-label">Today</div><div class="value" id="gridtoday">0.00 <span class="unit">kWh</span></div></div></div><div class="note" id="gridnote">Import / export</div></div>
   <div class="card battery-card" id="batterycard">
@@ -79,7 +80,7 @@ footer{color:#778ba3;font-size:11px;text-align:center;margin:22px 0}
 </div>
 </div>
 <div class="status" id="status">Dashboard created. Live data connection not yet configured.</div>
-<footer>Personal energy dashboard · Daily kWh totals are estimated from live readings while the dashboard is open</footer>
+<footer>Fox daily totals from FoxCloud reports · Hypervolt daily total is not yet available through the connected API</footer>
 
 <script>
 const FOX_WORKER = "https://energy-api.gerbenbouma.workers.dev/";
@@ -89,27 +90,10 @@ function kw(value) {
   return Number(value || 0).toFixed(2);
 }
 
-// Estimate daily energy from the live power readings while the dashboard is running.
-// Values persist across refreshes and reset automatically at local midnight.
-function addDailyEnergy(key, powerKw) {
-  const day = new Date().toLocaleDateString("en-CA");
-  const storageKey = "energyDaily_" + key;
-  let state = null;
-  try { state = JSON.parse(localStorage.getItem(storageKey) || "null"); } catch {}
-  const now = Date.now();
-  if (!state || state.day !== day) state = { day, kWh: 0, lastPower: powerKw, lastAt: now };
-  else {
-    const elapsedHours = Math.min(Math.max(0, now - Number(state.lastAt || now)) / 3600000, 10 / 60);
-    state.kWh += ((Math.max(0, Number(state.lastPower) || 0) + Math.max(0, powerKw)) / 2) * elapsedHours;
-    state.lastPower = powerKw;
-    state.lastAt = now;
-  }
-  try { localStorage.setItem(storageKey, JSON.stringify(state)); } catch {}
-  return state.kWh;
-}
-
 function showDaily(id, value) {
-  document.getElementById(id).innerHTML = Number(value || 0).toFixed(2) + ' <span class="unit">kWh</span>';
+  document.getElementById(id).innerHTML = value === null || value === undefined
+    ? '— <span class="unit">kWh</span>'
+    : Number(value || 0).toFixed(2) + ' <span class="unit">kWh</span>';
 }
 
 async function loadEnergyData() {
@@ -142,6 +126,22 @@ async function loadEnergyData() {
 
     if (!response.ok) throw new Error(JSON.stringify(data));
 
+    try {
+      const dailyResponse = await fetch(FOX_WORKER + "daily", {
+        headers: { "X-Dashboard-Password": password }
+      });
+      const dailyData = await dailyResponse.json();
+      if (!dailyResponse.ok) throw new Error(dailyData.details || dailyData.error || "Daily report unavailable");
+      showDaily("solartoday", dailyData.solarKWh);
+      const gridDaily = dailyData.gridImportKWh === null || dailyData.gridExportKWh === null
+        ? null : Number(dailyData.gridImportKWh) + Number(dailyData.gridExportKWh);
+      showDaily("gridtoday", gridDaily);
+    } catch (dailyError) {
+      showDaily("solartoday", null);
+      showDaily("gridtoday", null);
+      console.warn("FoxCloud daily report unavailable:", dailyError);
+    }
+
     const readings = data.result[0].datas;
     const values = {};
 
@@ -159,14 +159,12 @@ async function loadEnergyData() {
 
     document.getElementById("solar").innerHTML =
       kw(solar) + ' <span class="unit">kW</span>';
-    showDaily("solartoday", addDailyEnergy("solar", solar));
 
     document.getElementById("home").innerHTML =
       kw(home) + ' <span class="unit">kW</span>';
 
     document.getElementById("grid").innerHTML =
       kw(Math.max(gridImport, gridExport)) + ' <span class="unit">kW</span>';
-    showDaily("gridtoday", addDailyEnergy("grid", gridImport + gridExport));
 
     const batteryCharging = charge > 0.01;
     const batteryDischarging = discharge > 0.01;
@@ -220,7 +218,6 @@ async function loadEnergyData() {
       if (!evData.chargerId) throw new Error("Hypervolt endpoint is not deployed yet");
       const evWatts = Number(evData.evPowerW || 0);
       const evActive = evWatts > 10;
-      showDaily("evtoday", addDailyEnergy("ev", evWatts / 1000));
       setFlow("evflow", evActive, "blue", true);
       document.getElementById("evcard").classList.toggle("flow-blue", evActive);
 
@@ -237,7 +234,6 @@ async function loadEnergyData() {
           evData.charging === false ? "Not charging" : "Status unavailable";
       }
     } catch (evError) {
-      showDaily("evtoday", addDailyEnergy("ev", 0));
       setFlow("evflow", false, "blue", false);
       document.getElementById("evcard").classList.remove("flow-blue");
       document.getElementById("ev").innerHTML =
