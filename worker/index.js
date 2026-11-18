@@ -410,6 +410,44 @@ async function getFoxHistoryReport(env, date, dimension, variable = "PVEnergyTot
   return { dimension, date, variable, values, updatedAt: new Date().toISOString() };
 }
 
+async function queryFoxBatteryEnergyReport(env, year, month, dimension) {
+  const variables = ["chargeEnergyTotal", "dischargeEnergyTotal", "PVEnergyTotal", "loads", "feedin"];
+  const path = "/op/v0/device/report/query";
+  const timestamp = Date.now().toString();
+  const signature = md5(path + "\r\n" + env.FOX_API_KEY + "\r\n" + timestamp);
+  const params = { sn: env.FOX_DEVICE_SN, year, dimension, variables };
+  if (dimension === "month") params.month = month;
+  const response = await fetch("https://www.foxesscloud.com" + path, {
+    method: "POST",
+    headers: { token: env.FOX_API_KEY, timestamp, signature, lang: "en", "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" },
+    body: JSON.stringify(params),
+    signal: AbortSignal.timeout(15000)
+  });
+  const result = await response.json();
+  if (!response.ok || result.errno !== 0) throw new Error("Fox ESS battery energy report failed: " + JSON.stringify(result));
+  const output = {};
+  for (const variable of variables) {
+    const item = (result.result || []).find(entry => String(entry.variable || "").toLowerCase() === variable.toLowerCase());
+    if (!item || !Array.isArray(item.values)) throw new Error("Fox ESS report omitted " + variable);
+    output[variable] = item.values.map(value => value == null ? null : Number(value));
+  }
+  return output;
+}
+
+async function getFoxBatteryEnergyHistory(env, date, dimension) {
+  const [year, month] = date.split("-").map(Number);
+  const report = await queryFoxBatteryEnergyReport(env, year, month, dimension);
+  const chargeValues = report.chargeEnergyTotal;
+  const dischargeValues = report.dischargeEnergyTotal;
+  const solarValues = chargeValues.map((charge, i) => {
+    if (charge == null) return null;
+    const pv = report.PVEnergyTotal[i], loads = report.loads[i], feedin = report.feedin[i];
+    if (pv == null || loads == null || feedin == null) return null;
+    return Math.min(Math.max(0, charge), Math.max(0, pv - loads - feedin));
+  });
+  return { dimension, date, chargeValues, dischargeValues, solarValues, updatedAt: new Date().toISOString() };
+}
+
 async function getFoxDailyReport(env) {
   const { year, month, day } = londonDateParts();
   const path = "/op/v0/device/report/query";
@@ -496,6 +534,24 @@ export default {
     }
 
 
+
+    if (url.pathname === "/battery-energy-history") {
+      const dimension = url.searchParams.get("dimension") || "month";
+      const date = url.searchParams.get("date") || "";
+      if (!["month", "year"].includes(dimension) || !/^\\d{4}-\\d{2}-\\d{2}$/.test(date) || !Number.isFinite(Date.parse(date + "T12:00:00Z"))) {
+        return new Response(JSON.stringify({ error: "Invalid battery energy report period" }), { status: 400, headers: { ...cors, "Content-Type": "application/json" } });
+      }
+      const cacheKey = "battery-energy:" + dimension + ":" + date;
+      const cached = cachedHistory.get(cacheKey);
+      if (cached && Date.now() - cached.at < 900000) return new Response(JSON.stringify(cached.data), { headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
+      try {
+        const history = await getFoxBatteryEnergyHistory(env, date, dimension);
+        cachedHistory.set(cacheKey, { data: history, at: Date.now() });
+        return new Response(JSON.stringify(history), { headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
+      } catch (error) {
+        return new Response(JSON.stringify({ error: "Fox ESS battery energy report failed", details: error.message }), { status: 502, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
+      }
+    }
 
     if (url.pathname === "/battery-history-range") {
       const startDate = url.searchParams.get("start");
