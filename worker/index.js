@@ -527,8 +527,8 @@ export default {
         const series = {};
         for (let i = 0; i < ranges.length; i += 4) {
           const batch = await Promise.all(ranges.slice(i, i + 4).map(async ([from, to]) => {
-            const begin = Date.parse(from + "T00:00:00Z") - offsetMinutes(from) * 60000;
-            const end = Date.parse(to + "T00:00:00Z") - offsetMinutes(to) * 60000;
+            const begin = (Date.parse(from + "T00:00:00Z") - offsetMinutes(from) * 60000) * 1000;
+            const end = (Date.parse(to + "T00:00:00Z") - offsetMinutes(to) * 60000) * 1000;
             const timestamp = Date.now().toString();
             const signature = md5(FOX_HISTORY_API_PATH + "\r\n" + env.FOX_API_KEY + "\r\n" + timestamp);
             const response = await fetch("https://www.foxesscloud.com" + FOX_HISTORY_API_PATH, {
@@ -580,8 +580,8 @@ export default {
           const amount = Number(match[2]) * 60 + Number(match[3] || 0);
           return match[1] === "+" ? amount : -amount;
         };
-        const begin = Date.parse(date + "T00:00:00Z") - offsetMinutes(date) * 60000;
-        const end = Date.parse(nextDate + "T00:00:00Z") - offsetMinutes(nextDate) * 60000;
+        const begin = (Date.parse(date + "T00:00:00Z") - offsetMinutes(date) * 60000) * 1000;
+        const end = (Date.parse(nextDate + "T00:00:00Z") - offsetMinutes(nextDate) * 60000) * 1000;
         const timestamp = Date.now().toString();
         const signature = md5(FOX_HISTORY_API_PATH + "\r\n" + env.FOX_API_KEY + "\r\n" + timestamp);
         const response = await fetch("https://www.foxesscloud.com" + FOX_HISTORY_API_PATH, {
