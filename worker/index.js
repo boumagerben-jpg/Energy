@@ -538,7 +538,7 @@ export default {
     if (url.pathname === "/battery-energy-history") {
       const dimension = url.searchParams.get("dimension") || "month";
       const date = url.searchParams.get("date") || "";
-      if (!["month", "year"].includes(dimension) || !/^\\d{4}-\\d{2}-\\d{2}$/.test(date) || !Number.isFinite(Date.parse(date + "T12:00:00Z"))) {
+      if (!["month", "year"].includes(dimension) || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date + "T12:00:00Z"))) {
         return new Response(JSON.stringify({ error: "Invalid battery energy report period" }), { status: 400, headers: { ...cors, "Content-Type": "application/json" } });
       }
       const cacheKey = "battery-energy:" + dimension + ":" + date;
