@@ -525,7 +525,7 @@ export default {
         while (cursorMs < rangeEndMs) {
           const nextMs = Math.min(cursorMs + 24 * 60 * 60 * 1000, rangeEndMs);
           const timestamp = Date.now().toString();
-          const signature = md5(FOX_HISTORY_API_PATH + "\\r\\n" + env.FOX_API_KEY + "\\r\\n" + timestamp);
+          const signature = md5(FOX_HISTORY_API_PATH + "\r\n" + env.FOX_API_KEY + "\r\n" + timestamp);
           const response = await fetch("https://www.foxesscloud.com" + FOX_HISTORY_API_PATH, {
             method: "POST",
             headers: { token: env.FOX_API_KEY, timestamp, signature, lang: "en", "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" },
