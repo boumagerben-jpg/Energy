@@ -508,8 +508,18 @@ export default {
       const cached = cachedHistory.get(cacheKey);
       if (cached && Date.now() - cached.at < 900000) return new Response(JSON.stringify(cached.data), { headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
       try {
-        const begin = Date.parse(date + "T00:00:00Z");
-        const end = begin + 86400000;
+        const nextDate = new Date(Date.parse(date + "T12:00:00Z") + 86400000).toISOString().slice(0, 10);
+        const offsetMinutes = value => {
+          const zone = new Intl.DateTimeFormat("en-GB", {
+            timeZone: "Europe/London", timeZoneName: "shortOffset"
+          }).formatToParts(new Date(value + "T12:00:00Z")).find(part => part.type === "timeZoneName")?.value || "GMT";
+          const match = zone.match(/GMT([+-])(\\d{1,2})(?::(\\d{2}))?/);
+          if (!match) return 0;
+          const amount = Number(match[2]) * 60 + Number(match[3] || 0);
+          return match[1] === "+" ? amount : -amount;
+        };
+        const begin = Date.parse(date + "T00:00:00Z") - offsetMinutes(date) * 60000;
+        const end = Date.parse(nextDate + "T00:00:00Z") - offsetMinutes(nextDate) * 60000;
         const path = "/op/v0/device/history/query";
         const timestamp = Date.now().toString();
         const signature = md5(path + "\r\n" + env.FOX_API_KEY + "\r\n" + timestamp);
