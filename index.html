@@ -69,14 +69,15 @@ footer{color:#778ba3;font-size:11px;text-align:center;margin:22px 0}
   <div class="card" id="evcard"><div class="label">🚗 EV charging</div><div class="rate-pair"><div><div class="rate-label">Current</div><div class="value" id="ev">— <span class="unit">kW</span></div></div><div><div class="rate-label">Today</div><div class="value" id="evtoday">— <span class="unit">kWh</span></div></div></div><div class="note" id="evstatus">Not charging</div></div>
   <div class="card" id="homecard"><div class="label">🏠 Home</div><div class="value" id="home">— <span class="unit">kW</span></div><div class="note">Consumption</div></div>
   <a class="card solar-link" id="gridcard" href="./grid.html?v=20261117-2325" onclick="window.location.href='./grid.html?v=20261117-2325';return false" aria-label="Open grid import and export details"><div class="label">⚡ Grid</div><div class="rate-pair"><div><div class="rate-label">Current</div><div class="value" id="grid">— <span class="unit">kW</span></div></div><div><div class="rate-label">Today</div><div class="value" id="gridtoday">0.00 <span class="unit">kWh</span></div></div></div><div class="note" id="gridnote">Import / export</div><span class="solar-arrow" aria-hidden="true">↗</span></a>
-  <div class="card battery-card" id="batterycard">
+  <a class="card battery-card solar-link" id="batterycard" href="./battery.html?v=20261118-2035" onclick="window.location.href='./battery.html?v=20261118-2035';return false" aria-label="Open battery details">
     <div class="label">🔋 Battery</div>
     <div class="battery-middle">
       <div class="value" id="battery">— <span class="unit">kW</span></div>
       <div class="battery-visual"><div class="battery-shell" aria-label="Battery charge level"><div class="battery-fill" id="batteryfill"></div><div class="battery-percent" id="soc">—%</div></div></div>
     </div>
     <div class="battery-state" id="batterystate">Standby</div>
-  </div>
+    <span class="solar-arrow" aria-hidden="true">↗</span>
+  </a>
 </div>
 </div>
 <div class="status" id="status">Dashboard created. Live data connection not yet configured.</div>
