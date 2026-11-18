@@ -496,6 +496,43 @@ export default {
 
 
 
+    if (url.pathname === "/battery-history") {
+      const date = url.searchParams.get("date") || (() => {
+        const d = londonDateParts();
+        return d.year + "-" + String(d.month).padStart(2, "0") + "-" + String(d.day).padStart(2, "0");
+      })();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date + "T12:00:00Z"))) {
+        return new Response(JSON.stringify({ error: "Invalid battery history date" }), { status: 400, headers: { ...cors, "Content-Type": "application/json" } });
+      }
+      const cacheKey = "battery-day:" + date;
+      const cached = cachedHistory.get(cacheKey);
+      if (cached && Date.now() - cached.at < 900000) return new Response(JSON.stringify(cached.data), { headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
+      try {
+        const begin = Date.parse(date + "T00:00:00Z");
+        const end = begin + 86400000;
+        const path = "/op/v0/device/history/query";
+        const timestamp = Date.now().toString();
+        const signature = md5(path + "\r\n" + env.FOX_API_KEY + "\r\n" + timestamp);
+        const response = await fetch("https://www.foxesscloud.com" + path, {
+          method: "POST",
+          headers: { token: env.FOX_API_KEY, timestamp, signature, lang: "en", "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" },
+          body: JSON.stringify({ sn: env.FOX_DEVICE_SN, begin, end, variables: ["pvPower", "loadsPower", "feedinPower", "gridConsumptionPower", "batChargePower", "batDischargePower", "SoC"] }),
+          signal: AbortSignal.timeout(20000)
+        });
+        const result = await response.json();
+        if (!response.ok || result.errno !== 0) throw new Error(JSON.stringify(result));
+        const series = {};
+        for (const device of result.result || []) for (const item of device.datas || []) {
+          series[item.variable] = (item.data || []).map(point => ({ time: point.time, value: Number(point.value) })).filter(point => Number.isFinite(point.value));
+        }
+        const data = { date, series, updatedAt: new Date().toISOString() };
+        cachedHistory.set(cacheKey, { data, at: Date.now() });
+        return new Response(JSON.stringify(data), { headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
+      } catch (error) {
+        return new Response(JSON.stringify({ error: "Fox ESS battery history failed", details: error.message }), { status: 502, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
+      }
+    }
+
     if (url.pathname === "/grid-history") {
       const dimension = url.searchParams.get("dimension") || "week";
       const date = url.searchParams.get("date") || (() => {
@@ -542,7 +579,7 @@ export default {
         });
       }
       const variable = url.searchParams.get("variable") || "PVEnergyTotal";
-      if (!["PVEnergyTotal", "gridConsumption", "feedin"].includes(variable)) {
+      if (!["PVEnergyTotal", "gridConsumption", "feedin", "chargeEnergyTotal", "dischargeEnergyTotal"].includes(variable)) {
         return new Response(JSON.stringify({ error: "Invalid history variable" }), {
           status: 400, headers: { ...cors, "Content-Type": "application/json" }
         });
