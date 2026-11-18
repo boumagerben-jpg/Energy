@@ -516,22 +516,38 @@ export default {
           const amount = Number(match[2]) * 60 + Number(match[3] || 0);
           return match[1] === "+" ? amount : -amount;
         };
-        const begin = Date.parse(startDate + "T00:00:00Z") - offsetMinutes(startDate) * 60000;
-        const end = Date.parse(endDate + "T00:00:00Z") - offsetMinutes(endDate) * 60000;
-        const path = "/op/v0/device/history/query";
-        const timestamp = Date.now().toString();
-        const signature = md5(path + "\r\n" + env.FOX_API_KEY + "\r\n" + timestamp);
-        const response = await fetch("https://www.foxesscloud.com" + path, {
-          method: "POST",
-          headers: { token: env.FOX_API_KEY, timestamp, signature, lang: "en", "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" },
-          body: JSON.stringify({ sn: env.FOX_DEVICE_SN, begin, end, variables: ["pvPower", "loadsPower", "feedinPower", "batChargePower", "batDischargePower"] }),
-          signal: AbortSignal.timeout(25000)
-        });
-        const result = await response.json();
-        if (!response.ok || result.errno !== 0) throw new Error(JSON.stringify(result));
+        const addDays = (date, amount) => new Date(Date.parse(date + "T12:00:00Z") + amount * 86400000).toISOString().slice(0, 10);
+        const ranges = [];
+        for (let cursor = startDate; cursor < endDate;) {
+          const next = addDays(cursor, 14) < endDate ? addDays(cursor, 14) : endDate;
+          ranges.push([cursor, next]);
+          cursor = next;
+        }
         const series = {};
-        for (const device of result.result || []) for (const item of device.datas || []) {
-          series[item.variable] = (item.data || []).map(point => ({ time: point.time, value: Number(point.value) })).filter(point => Number.isFinite(point.value));
+        for (let i = 0; i < ranges.length; i += 4) {
+          const batch = await Promise.all(ranges.slice(i, i + 4).map(async ([from, to]) => {
+            const begin = Date.parse(from + "T00:00:00Z") - offsetMinutes(from) * 60000;
+            const end = Date.parse(to + "T00:00:00Z") - offsetMinutes(to) * 60000;
+            const timestamp = Date.now().toString();
+            const signature = md5(path + "\r\n" + env.FOX_API_KEY + "\r\n" + timestamp);
+            const response = await fetch("https://www.foxesscloud.com" + path, {
+              method: "POST",
+              headers: { token: env.FOX_API_KEY, timestamp, signature, lang: "en", "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" },
+              body: JSON.stringify({ sn: env.FOX_DEVICE_SN, begin, end, variables: ["pvPower", "loadsPower", "feedinPower", "batChargePower", "batDischargePower"] }),
+              signal: AbortSignal.timeout(25000)
+            });
+            const result = await response.json();
+            if (!response.ok || result.errno !== 0) throw new Error(JSON.stringify(result));
+            const chunk = {};
+            for (const device of result.result || []) for (const item of device.datas || []) {
+              chunk[item.variable] = (item.data || []).map(point => ({ time: point.time, value: Number(point.value) })).filter(point => Number.isFinite(point.value));
+            }
+            return chunk;
+          }));
+          for (const chunk of batch) for (const [variable, points] of Object.entries(chunk)) {
+            if (!series[variable]) series[variable] = [];
+            series[variable].push(...points);
+          }
         }
         const data = { start: startDate, end: endDate, series, updatedAt: new Date().toISOString() };
         cachedHistory.set(cacheKey, { data, at: Date.now() });
