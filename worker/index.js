@@ -513,7 +513,7 @@ export default {
           const zone = new Intl.DateTimeFormat("en-GB", {
             timeZone: "Europe/London", timeZoneName: "shortOffset"
           }).formatToParts(new Date(value + "T12:00:00Z")).find(part => part.type === "timeZoneName")?.value || "GMT";
-          const match = zone.match(/GMT([+-])(\\d{1,2})(?::(\\d{2}))?/);
+          const match = zone.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/);
           if (!match) return 0;
           const amount = Number(match[2]) * 60 + Number(match[3] || 0);
           return match[1] === "+" ? amount : -amount;
