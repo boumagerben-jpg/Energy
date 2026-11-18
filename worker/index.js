@@ -528,6 +528,7 @@ export default {
           const batch = await Promise.all(ranges.slice(i, i + 4).map(async ([from, to]) => {
             const begin = Date.parse(from + "T00:00:00Z") - offsetMinutes(from) * 60000;
             const end = Date.parse(to + "T00:00:00Z") - offsetMinutes(to) * 60000;
+            const path = "/op/v0/device/history/query";
             const timestamp = Date.now().toString();
             const signature = md5(path + "\r\n" + env.FOX_API_KEY + "\r\n" + timestamp);
             const response = await fetch("https://www.foxesscloud.com" + path, {
