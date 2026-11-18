@@ -9,6 +9,7 @@ let cachedAt = 0;
 let cachedDaily = null;
 let cachedDailyAt = 0;
 const cachedHistory = new Map();
+const FOX_HISTORY_API_PATH = "/op/v0/device/history/query";
 
 function md5(input) {
   const bytes = new TextEncoder().encode(input);
@@ -528,10 +529,9 @@ export default {
           const batch = await Promise.all(ranges.slice(i, i + 4).map(async ([from, to]) => {
             const begin = Date.parse(from + "T00:00:00Z") - offsetMinutes(from) * 60000;
             const end = Date.parse(to + "T00:00:00Z") - offsetMinutes(to) * 60000;
-            const path = "/op/v0/device/history/query";
             const timestamp = Date.now().toString();
-            const signature = md5(path + "\r\n" + env.FOX_API_KEY + "\r\n" + timestamp);
-            const response = await fetch("https://www.foxesscloud.com" + path, {
+            const signature = md5(FOX_HISTORY_API_PATH + "\r\n" + env.FOX_API_KEY + "\r\n" + timestamp);
+            const response = await fetch("https://www.foxesscloud.com" + FOX_HISTORY_API_PATH, {
               method: "POST",
               headers: { token: env.FOX_API_KEY, timestamp, signature, lang: "en", "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" },
               body: JSON.stringify({ sn: env.FOX_DEVICE_SN, begin, end, variables: ["pvPower", "loadsPower", "feedinPower", "batChargePower", "batDischargePower"] }),
@@ -582,10 +582,9 @@ export default {
         };
         const begin = Date.parse(date + "T00:00:00Z") - offsetMinutes(date) * 60000;
         const end = Date.parse(nextDate + "T00:00:00Z") - offsetMinutes(nextDate) * 60000;
-        const path = "/op/v0/device/history/query";
         const timestamp = Date.now().toString();
-        const signature = md5(path + "\r\n" + env.FOX_API_KEY + "\r\n" + timestamp);
-        const response = await fetch("https://www.foxesscloud.com" + path, {
+        const signature = md5(FOX_HISTORY_API_PATH + "\r\n" + env.FOX_API_KEY + "\r\n" + timestamp);
+        const response = await fetch("https://www.foxesscloud.com" + FOX_HISTORY_API_PATH, {
           method: "POST",
           headers: { token: env.FOX_API_KEY, timestamp, signature, lang: "en", "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" },
           body: JSON.stringify({ sn: env.FOX_DEVICE_SN, begin, end, variables: ["pvPower", "loadsPower", "feedinPower", "gridConsumptionPower", "batChargePower", "batDischargePower", "SoC"] }),
