@@ -496,6 +496,51 @@ export default {
 
 
 
+    if (url.pathname === "/battery-history-range") {
+      const startDate = url.searchParams.get("start");
+      const endDate = url.searchParams.get("end");
+      const validDate = value => /^\d{4}-\d{2}-\d{2}$/.test(value || "") && Number.isFinite(Date.parse(value + "T12:00:00Z"));
+      if (!validDate(startDate) || !validDate(endDate) || endDate <= startDate) {
+        return new Response(JSON.stringify({ error: "Invalid battery history range" }), { status: 400, headers: { ...cors, "Content-Type": "application/json" } });
+      }
+      const days = (Date.parse(endDate + "T12:00:00Z") - Date.parse(startDate + "T12:00:00Z")) / 86400000;
+      if (days > 367) return new Response(JSON.stringify({ error: "Battery history range is too large" }), { status: 400, headers: { ...cors, "Content-Type": "application/json" } });
+      const cacheKey = "battery-range:" + startDate + ":" + endDate;
+      const cached = cachedHistory.get(cacheKey);
+      if (cached && Date.now() - cached.at < 900000) return new Response(JSON.stringify(cached.data), { headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
+      try {
+        const offsetMinutes = value => {
+          const zone = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", timeZoneName: "shortOffset" }).formatToParts(new Date(value + "T12:00:00Z")).find(part => part.type === "timeZoneName")?.value || "GMT";
+          const match = zone.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/);
+          if (!match) return 0;
+          const amount = Number(match[2]) * 60 + Number(match[3] || 0);
+          return match[1] === "+" ? amount : -amount;
+        };
+        const begin = Date.parse(startDate + "T00:00:00Z") - offsetMinutes(startDate) * 60000;
+        const end = Date.parse(endDate + "T00:00:00Z") - offsetMinutes(endDate) * 60000;
+        const path = "/op/v0/device/history/query";
+        const timestamp = Date.now().toString();
+        const signature = md5(path + "\r\n" + env.FOX_API_KEY + "\r\n" + timestamp);
+        const response = await fetch("https://www.foxesscloud.com" + path, {
+          method: "POST",
+          headers: { token: env.FOX_API_KEY, timestamp, signature, lang: "en", "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" },
+          body: JSON.stringify({ sn: env.FOX_DEVICE_SN, begin, end, variables: ["pvPower", "loadsPower", "feedinPower", "batChargePower", "batDischargePower"] }),
+          signal: AbortSignal.timeout(25000)
+        });
+        const result = await response.json();
+        if (!response.ok || result.errno !== 0) throw new Error(JSON.stringify(result));
+        const series = {};
+        for (const device of result.result || []) for (const item of device.datas || []) {
+          series[item.variable] = (item.data || []).map(point => ({ time: point.time, value: Number(point.value) })).filter(point => Number.isFinite(point.value));
+        }
+        const data = { start: startDate, end: endDate, series, updatedAt: new Date().toISOString() };
+        cachedHistory.set(cacheKey, { data, at: Date.now() });
+        return new Response(JSON.stringify(data), { headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
+      } catch (error) {
+        return new Response(JSON.stringify({ error: "Fox ESS battery power history failed", details: error.message }), { status: 502, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
+      }
+    }
+
     if (url.pathname === "/battery-history") {
       const date = url.searchParams.get("date") || (() => {
         const d = londonDateParts();
