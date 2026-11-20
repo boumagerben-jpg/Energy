@@ -264,6 +264,52 @@ async function getHypervoltReading(env) {
 }
 
 
+async function collectHypervoltDaily(env) {
+  if (!env.ENERGY_DATA) throw new Error("ENERGY_DATA KV binding is missing");
+  const reading = await getHypervoltReading(env);
+  const currentWh = Number(reading.sessionEnergyWh);
+  if (!Number.isFinite(currentWh) || currentWh < 0) {
+    throw new Error("Hypervolt did not return a valid session energy reading");
+  }
+
+  const now = new Date();
+  const { year, month, day } = londonDateParts();
+  const date = year + "-" + String(month).padStart(2, "0") + "-" + String(day).padStart(2, "0");
+  const stateKey = "hypervolt:state";
+  const dailyKey = "ev-daily:" + date;
+  const previousRaw = await env.ENERGY_DATA.get(stateKey);
+  const previous = previousRaw ? JSON.parse(previousRaw) : null;
+
+  let deltaWh = 0;
+  if (previous && Number.isFinite(Number(previous.lastSessionEnergyWh))) {
+    const previousWh = Number(previous.lastSessionEnergyWh);
+    const newSession = reading.charging === true && previous.lastCharging !== true;
+    if (newSession || currentWh < previousWh) {
+      deltaWh = currentWh;
+    } else {
+      deltaWh = currentWh - previousWh;
+    }
+  }
+
+  const dailyRaw = await env.ENERGY_DATA.get(dailyKey);
+  const daily = dailyRaw ? JSON.parse(dailyRaw) : {
+    date, energyWh: 0, samples: 0, startedAt: now.toISOString()
+  };
+  daily.energyWh += Math.max(0, deltaWh);
+  daily.samples += 1;
+  daily.updatedAt = now.toISOString();
+  await env.ENERGY_DATA.put(dailyKey, JSON.stringify(daily));
+
+  await env.ENERGY_DATA.put(stateKey, JSON.stringify({
+    lastSessionEnergyWh: currentWh,
+    lastCharging: reading.charging,
+    lastSampleAt: now.toISOString()
+  }));
+
+  return { date, deltaWh: Math.max(0, deltaWh), totalWh: daily.energyWh };
+}
+
+
 function londonDateParts() {
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/London", year: "numeric", month: "2-digit", day: "2-digit"
@@ -491,6 +537,10 @@ async function getFoxDailyReport(env) {
 }
 
 export default {
+  async scheduled(controller, env, ctx) {
+    ctx.waitUntil(collectHypervoltDaily(env).catch(error => console.error("EV daily collection failed:", error.message)));
+  },
+
   async fetch(request, env) {
     const origin = request.headers.get("Origin") || "";
     const allowed = /^https:\/\/[a-zA-Z0-9-]+\.github\.io$/.test(origin);
@@ -516,6 +566,7 @@ export default {
 
     const url = new URL(request.url);
     const isHypervolt = url.pathname === "/hypervolt";
+    const isEvDaily = url.pathname === "/ev-daily";
     const isDaily = url.pathname === "/daily";
     const isHistory = url.pathname === "/history";
 
@@ -525,7 +576,7 @@ export default {
     if (isHypervolt && (!env.HYPERVOLT_EMAIL || !env.HYPERVOLT_PASSWORD)) {
       return new Response("Hypervolt secrets are missing", { status: 500, headers: cors });
     }
-    if (!isHypervolt && (!env.FOX_API_KEY || !env.FOX_DEVICE_SN)) {
+    if (!isHypervolt && !isEvDaily && (!env.FOX_API_KEY || !env.FOX_DEVICE_SN)) {
       return new Response("Fox ESS secrets are missing", { status: 500, headers: cors });
     }
 
@@ -721,6 +772,39 @@ export default {
           details: error.message
         }), {
           status: 502, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" }
+        });
+      }
+    }
+
+
+    if (isEvDaily) {
+      if (!env.ENERGY_DATA) {
+        return new Response(JSON.stringify({ error: "ENERGY_DATA KV binding is missing" }), {
+          status: 500, headers: { ...cors, "Content-Type": "application/json" }
+        });
+      }
+      const requestedDate = url.searchParams.get("date");
+      const date = requestedDate || (() => {
+        const d = londonDateParts();
+        return d.year + "-" + String(d.month).padStart(2, "0") + "-" + String(d.day).padStart(2, "0");
+      })();
+      if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date) || !Number.isFinite(Date.parse(date + "T12:00:00Z"))) {
+        return new Response(JSON.stringify({ error: "Invalid EV daily date" }), {
+          status: 400, headers: { ...cors, "Content-Type": "application/json" }
+        });
+      }
+      try {
+        const raw = await env.ENERGY_DATA.get("ev-daily:" + date);
+        const stored = raw ? JSON.parse(raw) : { date, energyWh: 0, samples: 0 };
+        return new Response(JSON.stringify({
+          date,
+          evChargingKWh: Number((Number(stored.energyWh || 0) / 1000).toFixed(3)),
+          samples: Number(stored.samples || 0),
+          updatedAt: stored.updatedAt || null
+        }), { headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
+      } catch (error) {
+        return new Response(JSON.stringify({ error: "Could not read EV daily total", details: error.message }), {
+          status: 500, headers: { ...cors, "Content-Type": "application/json" }
         });
       }
     }
