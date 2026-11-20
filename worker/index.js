@@ -584,7 +584,7 @@ export default {
     if (!env.DASHBOARD_PASSWORD) {
       return new Response("Worker secrets are missing", { status: 500, headers: cors });
     }
-    if ((isHypervolt || isEvHistory) && (!env.HYPERVOLT_EMAIL || !env.HYPERVOLT_PASSWORD)) {
+    if (isHypervolt && (!env.HYPERVOLT_EMAIL || !env.HYPERVOLT_PASSWORD)) {
       return new Response("Hypervolt secrets are missing", { status: 500, headers: cors });
     }
     if (!isHypervolt && !isEvDaily && !isEvHistory && (!env.FOX_API_KEY || !env.FOX_DEVICE_SN)) {
@@ -798,7 +798,7 @@ export default {
       const endDate = url.searchParams.get("end") || "";
       const intervalDate = url.searchParams.get("intervalDate") || londonDateParts().year + "-" +
         String(londonDateParts().month).padStart(2, "0") + "-" + String(londonDateParts().day).padStart(2, "0");
-      const validDate = value => /^\\d{4}-\\d{2}-\\d{2}$/.test(value) && Number.isFinite(Date.parse(value + "T12:00:00Z"));
+      const validDate = value => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value + "T12:00:00Z"));
       if (!validDate(startDate) || !validDate(endDate) || !validDate(intervalDate) ||
           endDate <= startDate || (Date.parse(endDate + "T12:00:00Z") - Date.parse(startDate + "T12:00:00Z")) / 86400000 > 367) {
         return new Response(JSON.stringify({ error: "Invalid EV history date range" }), {
