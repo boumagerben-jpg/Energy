@@ -1,3 +1,10 @@
 name = "energy-api"
 main = "index.js"
 compatibility_date = "2026-11-16"
+
+[[kv_namespaces]]
+binding = "ENERGY_DATA"
+id = "fbf5a05385d242deb7f74127a702cadc"
+
+[triggers]
+crons = ["*/5 * * * *"]
