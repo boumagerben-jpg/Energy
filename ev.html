@@ -131,7 +131,7 @@ function renderPicker(){
  p.querySelector("input").addEventListener("change",e=>{if(mode==="month")selectedDate=e.target.value+"-15";else if(mode==="year")selectedDate=e.target.value+"-06-15";else selectedDate=e.target.value;loadHistory()});
 }
 function labelsFor(dim,start,dates){
- const d=dateFromISO(start),labels=[];
+ const d=dateFromISO(start);let labels=[];
  if(dim==="year"){const y=d.getFullYear();for(let i=0;i<12;i++)labels.push({label:new Date(y,i,1,12).toLocaleDateString("en-GB",{month:"short"}),date:localISO(new Date(y,i,1,12)),current:y===today.getFullYear()&&i===today.getMonth()});}
  else labels=dates.map(date=>({label:dim==="month"?String(Number(date.slice(8,10))):dateFromISO(date).toLocaleDateString("en-GB",{weekday:"short"}),date,current:date===todayISO}));
  return labels;
