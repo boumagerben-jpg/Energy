@@ -32,6 +32,7 @@ h1{font-size:25px;margin:0}.sub{color:#9eafc3;font-size:13px;margin-top:4px}
 .chart-wrap{width:100%;overflow:hidden}
 #power-chart{display:block;width:100%;height:auto;min-height:210px}
 .chart-status{color:#91a6bd;font-size:12px;text-align:center;min-height:18px;margin-top:6px}
+.daily-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px 8px}.daily-gauge-card{min-width:0;text-align:center}.daily-gauge-wrap{position:relative;width:100%;max-width:155px;margin:0 auto 5px}.daily-gauge{display:block;width:100%;height:auto}.daily-gauge-value{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column}.daily-value{font-size:clamp(19px,5vw,29px);font-weight:800;letter-spacing:-1px;line-height:1;white-space:nowrap}.daily-unit{font-size:13px;color:#aebed0;font-weight:500}.daily-scale{font-size:10px;color:#8298b1;margin-top:4px}
 .status{color:#91a6bd;font-size:12px;min-height:18px;margin:12px 2px 0}
 @media(max-width:420px){body{padding:12px}.panel{padding:12px}.grid{gap:18px 4px}.gauge-wrap{max-width:118px}.value{font-size:clamp(17px,5vw,23px)}.unit{font-size:11px}}
 </style>
@@ -62,6 +63,18 @@ h1{font-size:25px;margin:0}.sub{color:#9eafc3;font-size:13px;margin-top:4px}
     <div class="chart-status" id="chart-status">Waiting for today's readings…</div>
   </div>
   <div class="status" id="status">Connecting to live energy data…</div>
+</section>
+<section class="panel">
+  <h2 class="section-title">Today's energy totals</h2>
+  <div class="daily-grid">
+    <div class="daily-gauge-card"><div class="label">☀️ From solar</div><div class="daily-gauge-wrap"><svg class="daily-gauge" viewBox="0 0 240 240"><circle cx="120" cy="120" r="91" fill="none" stroke="#53657a" stroke-width="13" pathLength="100" stroke-dasharray="88 12" transform="rotate(111.6 120 120)"/><circle id="d-arc-solar" cx="120" cy="120" r="91" fill="none" stroke="#27d889" stroke-width="13" stroke-linecap="round" pathLength="100" stroke-dasharray="0 100" transform="rotate(111.6 120 120)"/></svg><div class="daily-gauge-value"><div class="daily-value" id="d-v-solar">—</div><div class="daily-unit">kWh</div></div></div><div class="daily-scale">Today</div></div>
+    <div class="daily-gauge-card"><div class="label">🔋 From battery</div><div class="daily-gauge-wrap"><svg class="daily-gauge" viewBox="0 0 240 240"><circle cx="120" cy="120" r="91" fill="none" stroke="#53657a" stroke-width="13" pathLength="100" stroke-dasharray="88 12" transform="rotate(111.6 120 120)"/><circle id="d-arc-fromBattery" cx="120" cy="120" r="91" fill="none" stroke="#4c9cff" stroke-width="13" stroke-linecap="round" pathLength="100" stroke-dasharray="0 100" transform="rotate(111.6 120 120)"/></svg><div class="daily-gauge-value"><div class="daily-value" id="d-v-fromBattery">—</div><div class="daily-unit">kWh</div></div></div><div class="daily-scale">Today</div></div>
+    <div class="daily-gauge-card"><div class="label">⚡ From grid</div><div class="daily-gauge-wrap"><svg class="daily-gauge" viewBox="0 0 240 240"><circle cx="120" cy="120" r="91" fill="none" stroke="#53657a" stroke-width="13" pathLength="100" stroke-dasharray="88 12" transform="rotate(111.6 120 120)"/><circle id="d-arc-fromGrid" cx="120" cy="120" r="91" fill="none" stroke="#ff5964" stroke-width="13" stroke-linecap="round" pathLength="100" stroke-dasharray="0 100" transform="rotate(111.6 120 120)"/></svg><div class="daily-gauge-value"><div class="daily-value" id="d-v-fromGrid">—</div><div class="daily-unit">kWh</div></div></div><div class="daily-scale">Today</div></div>
+    <div class="daily-gauge-card"><div class="label">🚗 To car</div><div class="daily-gauge-wrap"><svg class="daily-gauge" viewBox="0 0 240 240"><circle cx="120" cy="120" r="91" fill="none" stroke="#53657a" stroke-width="13" pathLength="100" stroke-dasharray="88 12" transform="rotate(111.6 120 120)"/><circle id="d-arc-toCar" cx="120" cy="120" r="91" fill="none" stroke="#4c9cff" stroke-width="13" stroke-linecap="round" pathLength="100" stroke-dasharray="0 100" transform="rotate(111.6 120 120)"/></svg><div class="daily-gauge-value"><div class="daily-value" id="d-v-toCar">—</div><div class="daily-unit">kWh</div></div></div><div class="daily-scale">Today</div></div>
+    <div class="daily-gauge-card"><div class="label">🔋 To battery</div><div class="daily-gauge-wrap"><svg class="daily-gauge" viewBox="0 0 240 240"><circle cx="120" cy="120" r="91" fill="none" stroke="#53657a" stroke-width="13" pathLength="100" stroke-dasharray="88 12" transform="rotate(111.6 120 120)"/><circle id="d-arc-toBattery" cx="120" cy="120" r="91" fill="none" stroke="#4c9cff" stroke-width="13" stroke-linecap="round" pathLength="100" stroke-dasharray="0 100" transform="rotate(111.6 120 120)"/></svg><div class="daily-gauge-value"><div class="daily-value" id="d-v-toBattery">—</div><div class="daily-unit">kWh</div></div></div><div class="daily-scale">Today</div></div>
+    <div class="daily-gauge-card"><div class="label">⚡ To grid</div><div class="daily-gauge-wrap"><svg class="daily-gauge" viewBox="0 0 240 240"><circle cx="120" cy="120" r="91" fill="none" stroke="#53657a" stroke-width="13" pathLength="100" stroke-dasharray="88 12" transform="rotate(111.6 120 120)"/><circle id="d-arc-toGrid" cx="120" cy="120" r="91" fill="none" stroke="#27d889" stroke-width="13" stroke-linecap="round" pathLength="100" stroke-dasharray="0 100" transform="rotate(111.6 120 120)"/></svg><div class="daily-gauge-value"><div class="daily-value" id="d-v-toGrid">—</div><div class="daily-unit">kWh</div></div></div><div class="daily-scale">Today</div></div>
+  </div>
+  <div class="chart-status" id="daily-status">Daily totals will update when today's history is available.</div>
 </section>
 <script>
 const API="https://energy-api.gerbenbouma.workers.dev/";
@@ -116,6 +129,32 @@ const powerSeries=[
  {key:"toGrid",label:"To grid",color:"#22d3ee"}
 ];
 let powerSamples=[];
+function renderDailyTotals(){
+ const status=document.getElementById("daily-status");
+ const keys=["solar","fromBattery","fromGrid","toCar","toBattery","toGrid"];
+ const totals=Object.fromEntries(keys.map(k=>[k,0]));
+ if(!powerSamples.length){status.textContent="No readings recorded yet today.";return;}
+ const midnight=new Date();midnight.setHours(0,0,0,0);
+ const points=powerSamples.map(p=>({time:new Date(p.time).getTime(),sample:p})).filter(p=>Number.isFinite(p.time)).sort((a,b)=>a.time-b.time);
+ let covered=0;
+ for(let i=1;i<points.length;i++){
+  const a=points[i-1],b=points[i],start=Math.max(a.time,midnight.getTime()),end=b.time;
+  const hours=(end-start)/3600000;
+  if(hours<=0||hours>1/6)continue;
+  covered+=hours;
+  for(const key of keys){
+   const av=Math.max(0,Number(a.sample[key]||0)),bv=Math.max(0,Number(b.sample[key]||0));
+   totals[key]+=((av+bv)/2)*hours;
+  }
+ }
+ const maxTotal=Math.max(1,...keys.map(k=>totals[k]));
+ for(const key of keys){
+  document.getElementById("d-v-"+key).textContent=totals[key].toFixed(2);
+  const percent=Math.min(88,totals[key]/maxTotal*88);
+  document.getElementById("d-arc-"+key).setAttribute("stroke-dasharray",percent.toFixed(2)+" 100");
+ }
+ status.textContent="Integrated from today's recorded power samples · "+(covered*60).toFixed(0)+" minutes covered";
+}
 function renderPowerChart(){
  const svg=document.getElementById("power-chart"),status=document.getElementById("chart-status");
  const active=powerSeries.filter(series=>document.querySelector('[data-series="'+series.key+'"]').checked);
@@ -144,6 +183,7 @@ async function loadPowerHistory(){
   if(!response.ok)throw new Error(data.details||data.error||"Power history unavailable.");
   powerSamples=Array.isArray(data.samples)?data.samples:[];
   renderPowerChart();
+  renderDailyTotals();
  }catch(e){document.getElementById("chart-status").textContent="Graph update failed: "+e.message;}
 }
 load().then(loadPowerHistory);setInterval(load,300000);setInterval(loadPowerHistory,300000);
