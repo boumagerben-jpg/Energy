@@ -19,7 +19,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:8px
 .current{font-size:clamp(23px,6vw,31px);font-weight:800;letter-spacing:-1.5px;line-height:1}
 .current span{font-size:15px;color:#aebed0;font-weight:500;letter-spacing:0}
 .gauge-caption{font-size:12px;color:#aebed0;margin-top:8px}
-.max-label{display:flex;justify-content:space-between;width:100%;max-width:185px;margin:-6px auto 0;color:#9eafc3;font-size:11px}.max-label span:first-child{text-align:right}.max-label span:last-child{text-align:left}
+.max-label{position:relative;width:100%;max-width:185px;height:14px;margin:-6px auto 0;color:#9eafc3;font-size:11px}.max-label span:first-child{position:absolute;right:64%;text-align:right;white-space:nowrap}.max-label span:last-child{position:absolute;left:64%;text-align:left;white-space:nowrap}
 .today{text-align:center;padding:0 0 10px;border:0;border-bottom:1px solid #40566f;margin-bottom:10px}
 .today-label{font-size:13px;color:#aebed0}
 .today-value{display:flex;align-items:baseline;justify-content:center;gap:6px;font-size:clamp(22px,5vw,32px);font-weight:750;letter-spacing:-1px;margin-top:5px;white-space:nowrap}
