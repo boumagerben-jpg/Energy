@@ -296,6 +296,16 @@ async function collectHypervoltDaily(env) {
     date, energyWh: 0, samples: 0, startedAt: now.toISOString()
   };
   daily.energyWh += Math.max(0, deltaWh);
+  if (!Array.isArray(daily.intervalsWh) || daily.intervalsWh.length !== 48) {
+    daily.intervalsWh = Array(48).fill(0);
+  }
+  const timeParts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London", hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+  }).formatToParts(now);
+  const hour = Number(timeParts.find(part => part.type === "hour").value);
+  const minute = Number(timeParts.find(part => part.type === "minute").value);
+  const intervalIndex = Math.min(47, Math.floor((hour * 60 + minute) / 30));
+  daily.intervalsWh[intervalIndex] += Math.max(0, deltaWh);
   daily.samples += 1;
   daily.updatedAt = now.toISOString();
   await env.ENERGY_DATA.put(dailyKey, JSON.stringify(daily));
@@ -567,16 +577,17 @@ export default {
     const url = new URL(request.url);
     const isHypervolt = url.pathname === "/hypervolt";
     const isEvDaily = url.pathname === "/ev-daily";
+    const isEvHistory = url.pathname === "/ev-history";
     const isDaily = url.pathname === "/daily";
     const isHistory = url.pathname === "/history";
 
     if (!env.DASHBOARD_PASSWORD) {
       return new Response("Worker secrets are missing", { status: 500, headers: cors });
     }
-    if (isHypervolt && (!env.HYPERVOLT_EMAIL || !env.HYPERVOLT_PASSWORD)) {
+    if ((isHypervolt || isEvHistory) && (!env.HYPERVOLT_EMAIL || !env.HYPERVOLT_PASSWORD)) {
       return new Response("Hypervolt secrets are missing", { status: 500, headers: cors });
     }
-    if (!isHypervolt && !isEvDaily && (!env.FOX_API_KEY || !env.FOX_DEVICE_SN)) {
+    if (!isHypervolt && !isEvDaily && !isEvHistory && (!env.FOX_API_KEY || !env.FOX_DEVICE_SN)) {
       return new Response("Fox ESS secrets are missing", { status: 500, headers: cors });
     }
 
@@ -776,6 +787,47 @@ export default {
       }
     }
 
+
+    if (isEvHistory) {
+      if (!env.ENERGY_DATA) {
+        return new Response(JSON.stringify({ error: "ENERGY_DATA KV binding is missing" }), {
+          status: 500, headers: { ...cors, "Content-Type": "application/json" }
+        });
+      }
+      const startDate = url.searchParams.get("start") || "";
+      const endDate = url.searchParams.get("end") || "";
+      const intervalDate = url.searchParams.get("intervalDate") || londonDateParts().year + "-" +
+        String(londonDateParts().month).padStart(2, "0") + "-" + String(londonDateParts().day).padStart(2, "0");
+      const validDate = value => /^\\d{4}-\\d{2}-\\d{2}$/.test(value) && Number.isFinite(Date.parse(value + "T12:00:00Z"));
+      if (!validDate(startDate) || !validDate(endDate) || !validDate(intervalDate) ||
+          endDate <= startDate || (Date.parse(endDate + "T12:00:00Z") - Date.parse(startDate + "T12:00:00Z")) / 86400000 > 367) {
+        return new Response(JSON.stringify({ error: "Invalid EV history date range" }), {
+          status: 400, headers: { ...cors, "Content-Type": "application/json" }
+        });
+      }
+      try {
+        const dates = [];
+        for (let d = new Date(startDate + "T12:00:00Z"); d < new Date(endDate + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + 1)) {
+          dates.push(d.toISOString().slice(0, 10));
+        }
+        const records = await Promise.all(dates.map(async date => {
+          const raw = await env.ENERGY_DATA.get("ev-daily:" + date);
+          const stored = raw ? JSON.parse(raw) : null;
+          return stored ? Number(stored.energyWh || 0) / 1000 : 0;
+        }));
+        const intervalRaw = await env.ENERGY_DATA.get("ev-daily:" + intervalDate);
+        const intervalRecord = intervalRaw ? JSON.parse(intervalRaw) : null;
+        const intervals = Array.isArray(intervalRecord?.intervalsWh) ? intervalRecord.intervalsWh.map(value => Number(value || 0) / 1000) : Array(48).fill(0);
+        return new Response(JSON.stringify({
+          start: startDate, end: endDate, dates, dailyKWh: records, intervalDate, intervals,
+          updatedAt: intervalRecord?.updatedAt || null
+        }), { headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
+      } catch (error) {
+        return new Response(JSON.stringify({ error: "Could not read EV history", details: error.message }), {
+          status: 500, headers: { ...cors, "Content-Type": "application/json" }
+        });
+      }
+    }
 
     if (isEvDaily) {
       if (!env.ENERGY_DATA) {
