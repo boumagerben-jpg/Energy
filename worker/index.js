@@ -868,6 +868,22 @@ export default {
       }
     }
 
+    if (isPowerHistory) {
+      if (!env.ENERGY_DATA) return new Response(JSON.stringify({ error: "ENERGY_DATA KV binding is missing" }), { status: 500, headers: { ...cors, "Content-Type": "application/json" } });
+      const requestedDate = url.searchParams.get("date");
+      const date = requestedDate || (() => { const d = londonDateParts(); return d.year + "-" + String(d.month).padStart(2, "0") + "-" + String(d.day).padStart(2, "0"); })();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date + "T12:00:00Z"))) {
+        return new Response(JSON.stringify({ error: "Invalid power history date" }), { status: 400, headers: { ...cors, "Content-Type": "application/json" } });
+      }
+      try {
+        const raw = await env.ENERGY_DATA.get("power-daily:" + date);
+        const stored = raw ? JSON.parse(raw) : { date, samples: [] };
+        return new Response(JSON.stringify(stored), { headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
+      } catch (error) {
+        return new Response(JSON.stringify({ error: "Could not read power history", details: error.message }), { status: 500, headers: { ...cors, "Content-Type": "application/json" } });
+      }
+    }
+
     if (isEvDaily) {
       if (!env.ENERGY_DATA) {
         return new Response(JSON.stringify({ error: "ENERGY_DATA KV binding is missing" }), {
