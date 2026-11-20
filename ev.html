@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#101b2b">
+<title>EV charging · Home Energy</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;padding:16px;background:#101b2b;color:#f4f7fb;font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:760px;margin-inline:auto}
+header{display:flex;align-items:center;justify-content:space-between;padding:8px 0 22px}
+h1{font-size:25px;margin:0}.sub{color:#9eafc3;font-size:13px;margin-top:4px}
+.home-button{display:grid;place-items:center;width:40px;height:40px;border:1px solid #40566f;border-radius:12px;background:#1b2b40;color:#dce7f3;text-decoration:none;font-size:21px;flex:0 0 auto}
+.panel{background:#1b2b40;border:1px solid #30445c;border-radius:18px;padding:18px;margin-bottom:16px}
+.summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.meter{text-align:center;min-width:0}.meter-title{font-size:14px;font-weight:700;margin-bottom:4px;color:#c7d4e2}
+.gauge-wrap{position:relative;width:100%;max-width:185px;margin:auto}.gauge{display:block;width:100%;height:auto}
+.gauge-value{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column}
+.current{font-size:clamp(23px,6vw,31px);font-weight:800;letter-spacing:-1.5px;line-height:1}
+.current span{font-size:15px;color:#aebed0;font-weight:500;letter-spacing:0}
+.gauge-caption{font-size:12px;color:#aebed0;margin-top:8px}
+.max-label{display:flex;justify-content:space-between;color:#9eafc3;font-size:11px;margin-top:-6px;padding:0 5px}
+.section-title{font-size:17px;font-weight:700;margin:0 0 14px}
+.controls{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px}
+.controls button{border:1px solid #40566f;border-radius:10px;background:#17263a;color:#dce7f3;padding:9px 12px;font-size:13px;cursor:pointer}
+.controls button.active{background:#24496b;border-color:#5da5e8;color:#fff}
+.period-picker{display:flex;align-items:center;gap:8px;margin:0 0 12px;color:#aebed0;font-size:12px;flex-wrap:wrap}
+.period-picker input{background:#142338;border:1px solid #40566f;border-radius:8px;color:#f4f7fb;padding:7px;font:inherit}
+.chart-wrap{width:100%;overflow:hidden}
+.chart-wrap svg{display:block;width:100%;height:auto}
+.legend{display:flex;gap:16px;align-items:center;color:#aebed0;font-size:11px;margin-top:10px}
+.key{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;background:#438fe3}
+.key.today-key{background:#27d889}
+.status{color:#91a6bd;font-size:12px;min-height:18px;margin-top:10px}
+@media(max-width:420px){body{padding:12px}.panel{padding:14px}.summary{gap:6px}}
+</style>
+</head>
+<body>
+<header><div><h1>EV charging</h1><div class="sub">Hypervolt · live and historical charging</div></div><a class="home-button" href="index.html" aria-label="Back to home" title="Home">⌂</a></header>
+<section class="panel summary">
+  <div class="meter">
+    <div class="meter-title">Current charging rate</div>
+    <div class="gauge-wrap">
+      <svg class="gauge" viewBox="0 0 240 240" role="img" aria-label="Current EV charging rate gauge">
+        <circle cx="120" cy="120" r="91" fill="none" stroke="#53657a" stroke-width="13" pathLength="100" stroke-dasharray="88 12" transform="rotate(111.6 120 120)"/>
+        <circle id="rateArc" cx="120" cy="120" r="91" fill="none" stroke="#438fe3" stroke-width="13" stroke-linecap="round" pathLength="100" stroke-dasharray="0 100" transform="rotate(111.6 120 120)"/>
+      </svg>
+      <div class="gauge-value"><div class="current" id="currentRate">— <span>kW</span></div><div class="gauge-caption" id="chargingState">Checking charger…</div></div>
+    </div>
+    <div class="max-label"><span>0 kW</span><span>7.4 kW</span></div>
+  </div>
+  <div class="meter">
+    <div class="meter-title">Energy charged today</div>
+    <div class="gauge-wrap">
+      <svg class="gauge" viewBox="0 0 240 240" role="img" aria-label="EV energy charged today gauge">
+        <circle cx="120" cy="120" r="91" fill="none" stroke="#53657a" stroke-width="13" pathLength="100" stroke-dasharray="88 12" transform="rotate(111.6 120 120)"/>
+        <circle id="dailyArc" cx="120" cy="120" r="91" fill="none" stroke="#27d889" stroke-width="13" stroke-linecap="round" pathLength="100" stroke-dasharray="0 100" transform="rotate(111.6 120 120)"/>
+      </svg>
+      <div class="gauge-value"><div class="current" id="todayEnergy">— <span>kWh</span></div><div class="gauge-caption">Today</div></div>
+    </div>
+    <div class="max-label"><span>0 kWh</span><span>50 kWh</span></div>
+  </div>
+</section>
+<section class="panel">
+  <h2 class="section-title">Today's charging · 30-minute intervals</h2>
+  <div class="chart-wrap"><svg id="intervalChart" viewBox="0 0 640 270" role="img" aria-label="EV energy charged in each half-hour interval today"></svg></div>
+  <div class="legend"><span><i class="key"></i>Energy per 30 minutes</span></div>
+  <div class="status" id="intervalStatus">Loading today's intervals…</div>
+</section>
+<section class="panel">
+  <h2 class="section-title">Daily charging history</h2>
+  <div class="controls" role="group" aria-label="Chart period">
+    <button type="button" data-mode="last7" class="active">Last 7 days</button>
+    <button type="button" data-mode="week">Week</button>
+    <button type="button" data-mode="month">Month</button>
+    <button type="button" data-mode="year">Year</button>
+  </div>
+  <div class="period-picker" id="periodPicker" hidden></div>
+  <div class="chart-wrap"><svg id="dailyChart" viewBox="0 0 640 280" role="img" aria-label="Daily EV charging energy bar chart"></svg></div>
+  <div class="legend"><span><i class="key"></i>Daily charging</span><span><i class="key today-key"></i>Current day</span></div>
+  <div class="status" id="historyStatus">Loading EV history…</div>
+</section>
+<script>
+const API="https://energy-api.gerbenbouma.workers.dev/";
+const MAX_RATE=7.4,MAX_DAILY=50;
+const today=new Date(),todayISO=localISO(today);
+let password=sessionStorage.getItem("energyPassword"),mode="last7",selectedDate=todayISO;
+function localISO(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function dateFromISO(s){return new Date(s+"T12:00:00")}
+function mondayOf(d){const x=new Date(d);x.setDate(x.getDate()-((x.getDay()+6)%7));return x}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+async function getPassword(){if(!password){password=prompt("Enter your energy dashboard password");if(!password)throw new Error("Dashboard password required");sessionStorage.setItem("energyPassword",password)}return password}
+async function getJSON(path){const p=await getPassword();const r=await fetch(API+path,{headers:{"X-Dashboard-Password":p},cache:"no-store"});const d=await r.json();if(r.status===401){sessionStorage.removeItem("energyPassword");password=null}if(!r.ok)throw new Error(d.details||d.error||"EV data unavailable");return d}
+function gauge(id,value,max){document.getElementById(id).setAttribute("stroke-dasharray",(Math.max(0,Math.min(value,max))/max*88).toFixed(2)+" 100")}
+async function loadLive(){
+ try{
+  const [live,daily]=await Promise.all([getJSON("hypervolt"),getJSON("ev-daily")]);
+  const kw=live.evPowerW==null?null:Math.max(0,Number(live.evPowerW)/1000);
+  document.getElementById("currentRate").innerHTML=(kw==null?"—":kw.toFixed(2))+' <span>kW</span>';
+  document.getElementById("chargingState").textContent=live.charging===true?"Charging":live.charging===false?"Not charging":"Status unavailable";
+  gauge("rateArc",kw||0,MAX_RATE);
+  const kwh=Number(daily.evChargingKWh||0);
+  document.getElementById("todayEnergy").innerHTML=kwh.toFixed(2)+' <span>kWh</span>';
+  gauge("dailyArc",kwh,MAX_DAILY);
+ }catch(e){document.getElementById("chargingState").textContent=e.message}
+}
+function showBarValue(svg,bar){
+ const old=svg.querySelector("#barValuePopup");if(old)old.remove();
+ const x=Number(bar.getAttribute("x")),y=Number(bar.getAttribute("y")),w=Number(bar.getAttribute("width")),cx=x+w/2,boxW=112,boxH=30,px=Math.max(4,Math.min(640-boxW-4,cx-boxW/2)),py=Math.max(4,y-boxH-8);
+ const g=document.createElementNS("http://www.w3.org/2000/svg","g");g.setAttribute("id","barValuePopup");g.setAttribute("pointer-events","none");
+ const r=document.createElementNS("http://www.w3.org/2000/svg","rect");r.setAttribute("x",px);r.setAttribute("y",py);r.setAttribute("width",boxW);r.setAttribute("height",boxH);r.setAttribute("rx","7");r.setAttribute("fill","#f4f7fb");r.setAttribute("stroke","#17263a");r.setAttribute("stroke-width","1.5");
+ const t=document.createElementNS("http://www.w3.org/2000/svg","text");t.setAttribute("x",px+boxW/2);t.setAttribute("y",py+20);t.setAttribute("fill","#101b2b");t.setAttribute("font-size","14");t.setAttribute("font-weight","700");t.setAttribute("text-anchor","middle");t.textContent=Number(bar.dataset.value).toFixed(2)+" kWh";
+ g.append(r,t);svg.append(g);
+}
+function drawInterval(values){
+ const svg=document.getElementById("intervalChart"),W=640,H=270,L=58,R=12,T=12,B=54,vals=values.map(v=>Math.max(0,Number(v)||0)),max=Math.max(.1,...vals)*1.15,ph=H-T-B,pw=W-L-R;
+ let s='<text x="14" y="'+(T+ph/2)+'" fill="#aebed0" font-size="14" text-anchor="middle" transform="rotate(-90 14 '+(T+ph/2)+')">kWh / 30 min</text>';
+ for(let i=0;i<=4;i++){const y=T+ph*i/4,v=max*(1-i/4);s+='<line x1="'+L+'" y1="'+y+'" x2="'+(W-R)+'" y2="'+y+'" stroke="#40536a"/><text x="'+(L-8)+'" y="'+(y+4)+'" fill="#9eafc3" font-size="14" text-anchor="end">'+v.toFixed(max<2?2:1)+'</text>'}
+ const pts=vals.map((v,i)=>({x:L+i*pw/47,y:T+ph-v/max*ph,v}));
+ s+='<polyline points="'+pts.map(p=>p.x.toFixed(1)+","+p.y.toFixed(1)).join(" ")+'" fill="none" stroke="#438fe3" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>';
+ pts.forEach((p,i)=>{if(p.v>0)s+='<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="3" fill="#438fe3"><title>'+String(Math.floor(i/2)).padStart(2,"0")+":"+(i%2?"30":"00")+" · "+p.v.toFixed(3)+' kWh</title></circle>';if(i%4===0)s+='<text x="'+p.x.toFixed(1)+'" y="'+(H-22)+'" fill="#aebed0" font-size="12" text-anchor="middle">'+String(Math.floor(i/2)).padStart(2,"0")+":"+(i%2?"30":"00")+'</text>'});
+ svg.innerHTML=s;
+}
+function renderPicker(){
+ const p=document.getElementById("periodPicker");
+ if(mode==="last7"){p.hidden=true;p.innerHTML="";return}
+ p.hidden=false;
+ if(mode==="week")p.innerHTML='<label for="periodDate">Week starting (Monday)</label><input id="periodDate" type="date" value="'+localISO(mondayOf(dateFromISO(selectedDate)))+'" max="'+todayISO+'">';
+ if(mode==="month")p.innerHTML='<label for="periodDate">Month</label><input id="periodDate" type="month" value="'+selectedDate.slice(0,7)+'" max="'+todayISO.slice(0,7)+'">';
+ if(mode==="year")p.innerHTML='<label for="periodDate">Year</label><input id="periodDate" type="number" min="2026" max="'+today.getFullYear()+'" step="1" value="'+selectedDate.slice(0,4)+'">';
+ p.querySelector("input").addEventListener("change",e=>{if(mode==="month")selectedDate=e.target.value+"-15";else if(mode==="year")selectedDate=e.target.value+"-06-15";else selectedDate=e.target.value;loadHistory()});
+}
+function labelsFor(dim,start,dates){
+ const d=dateFromISO(start),labels=[];
+ if(dim==="year"){const y=d.getFullYear();for(let i=0;i<12;i++)labels.push({label:new Date(y,i,1,12).toLocaleDateString("en-GB",{month:"short"}),date:localISO(new Date(y,i,1,12)),current:y===today.getFullYear()&&i===today.getMonth()});}
+ else labels=dates.map(date=>({label:dim==="month"?String(Number(date.slice(8,10))):dateFromISO(date).toLocaleDateString("en-GB",{weekday:"short"}),date,current:date===todayISO}));
+ return labels;
+}
+function drawDaily(values,labels){
+ const svg=document.getElementById("dailyChart"),W=640,H=280,L=58,R=12,T=12,B=62,vals=values.map(v=>Math.max(0,Number(v)||0)),max=Math.max(.5,...vals)*1.12,ph=H-T-B,pw=W-L-R,slot=pw/Math.max(1,vals.length),bw=Math.max(3,Math.min(38,slot*.58));
+ let s='<text x="14" y="'+(T+ph/2)+'" fill="#aebed0" font-size="14" text-anchor="middle" transform="rotate(-90 14 '+(T+ph/2)+')">kWh</text>';
+ for(let i=0;i<=4;i++){const y=T+ph*i/4,v=max*(1-i/4);s+='<line x1="'+L+'" y1="'+y+'" x2="'+(W-R)+'" y2="'+y+'" stroke="#40536a"/><text x="'+(L-8)+'" y="'+(y+4)+'" fill="#9eafc3" font-size="14" text-anchor="end">'+v.toFixed(max<10?1:0)+'</text>'}
+ vals.forEach((v,i)=>{const x=L+i*slot+(slot-bw)/2,h=v/max*ph,y=T+ph-h,isToday=!!labels[i]?.current;s+='<rect data-value="'+v.toFixed(3)+'" x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(0,h).toFixed(1)+'" rx="3" fill="'+(isToday?"#27d889":"#438fe3")+'" style="cursor:pointer"><title>'+esc(labels[i]?.date||labels[i]?.label)+": "+v.toFixed(2)+' kWh</title></rect>';const every=vals.length>20?Math.ceil(vals.length/12):1;if(i%every===0||i===vals.length-1)s+='<text x="'+(x+bw/2).toFixed(1)+'" y="'+(H-25)+'" fill="#aebed0" font-size="'+(vals.length>20?12:15)+'" text-anchor="middle">'+esc(labels[i]?.label||"")+'</text>'});
+ svg.innerHTML=s;
+}
+async function loadHistory(){
+ const status=document.getElementById("historyStatus");status.textContent="Loading EV charging history…";
+ let start,end,dim=mode;
+ if(mode==="last7"){start=localISO(new Date(today.getFullYear(),today.getMonth(),today.getDate()-6,12));end=localISO(new Date(today.getFullYear(),today.getMonth(),today.getDate()+1,12))}
+ else if(mode==="week"){start=localISO(mondayOf(dateFromISO(selectedDate)));end=localISO(new Date(dateFromISO(start).getTime()+7*86400000))}
+ else if(mode==="month"){const d=dateFromISO(selectedDate);start=localISO(new Date(d.getFullYear(),d.getMonth(),1,12));end=localISO(new Date(d.getFullYear(),d.getMonth()+1,1,12))}
+ else{const y=Number(selectedDate.slice(0,4));start=y+"-01-01";end=(y+1)+"-01-01"}
+ try{
+  const d=await getJSON("ev-history?start="+start+"&end="+end+"&intervalDate="+todayISO);
+  if(mode==="year"){
+   const y=Number(start.slice(0,4)),values=Array(12).fill(0);
+   d.dates.forEach((date,i)=>{if(Number(date.slice(0,4))===y)values[Number(date.slice(5,7))-1]+=Number(d.dailyKWh[i]||0)});
+   const labels=labelsFor("year",start,[]);
+   drawDaily(values,labels);
+  }else{
+   const labels=labelsFor(mode,start,d.dates);
+   drawDaily(d.dailyKWh,labels);
+  }
+  status.textContent=(mode==="year"?"Monthly totals · ":mode==="month"?"Daily totals · ":"Daily totals · ")+
+    (mode==="year"?start.slice(0,4):mode==="month"?dateFromISO(selectedDate).toLocaleDateString("en-GB",{month:"long",year:"numeric"}):dateFromISO(start).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"}));
+  if(mode==="week")status.textContent="Daily totals · week starting "+dateFromISO(start).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"});
+  if(mode==="last7")status.textContent="Daily totals · last 7 days";
+ }catch(e){status.textContent=e.message}
+}
+async function loadIntervals(){
+ try{
+  const d=await getJSON("ev-history?start="+todayISO+"&end="+localISO(new Date(today.getFullYear(),today.getMonth(),today.getDate()+1,12))+"&intervalDate="+todayISO);
+  drawInterval(d.intervals||Array(48).fill(0));
+  document.getElementById("intervalStatus").textContent="Today · "+today.toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})+" · readings collected every 5 minutes";
+ }catch(e){document.getElementById("intervalStatus").textContent=e.message}
+}
+document.getElementById("dailyChart").addEventListener("click",e=>{const bar=e.target.closest("rect[data-value]");if(bar)showBarValue(e.currentTarget,bar)});
+document.querySelectorAll("[data-mode]").forEach(btn=>btn.addEventListener("click",()=>{mode=btn.dataset.mode;document.querySelectorAll("[data-mode]").forEach(b=>b.classList.toggle("active",b===btn));if(mode==="last7")selectedDate=todayISO;if(mode==="week")selectedDate=localISO(mondayOf(dateFromISO(todayISO)));renderPicker();loadHistory()}));
+renderPicker();loadLive();loadHistory();loadIntervals();
+setInterval(()=>{loadLive();loadIntervals();},300000);
+</script>
+</body>
+</html>
