@@ -81,7 +81,7 @@ footer{color:#778ba3;font-size:11px;text-align:center;margin:22px 0}
 </div>
 </div>
 <div class="status" id="status">Dashboard created. Live data connection not yet configured.</div>
-<footer>Fox daily totals from FoxCloud reports · Hypervolt daily total is not yet available through the connected API</footer>
+<footer>Fox daily totals from FoxCloud reports · Hypervolt daily total collected automatically</footer>
 
 <script>
 const FOX_WORKER = "https://energy-api.gerbenbouma.workers.dev/";
@@ -233,6 +233,18 @@ async function loadEnergyData() {
         document.getElementById("evstatus").textContent =
           evData.charging === true ? "Charging" :
           evData.charging === false ? "Not charging" : "Status unavailable";
+      }
+
+      try {
+        const evDailyResponse = await fetch(FOX_WORKER + "ev-daily", {
+          headers: { "X-Dashboard-Password": password }
+        });
+        const evDailyData = await evDailyResponse.json();
+        if (!evDailyResponse.ok) throw new Error(evDailyData.details || evDailyData.error || "Daily total unavailable");
+        showDaily("evtoday", evDailyData.evChargingKWh);
+      } catch (evDailyError) {
+        showDaily("evtoday", null);
+        console.warn("Hypervolt daily total unavailable:", evDailyError);
       }
     } catch (evError) {
       setFlow("evflow", false, "blue", false);
