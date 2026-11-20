@@ -264,9 +264,47 @@ async function getHypervoltReading(env) {
 }
 
 
+async function collectPowerSnapshot(env, evReading) {
+  if (!env.ENERGY_DATA) throw new Error("ENERGY_DATA KV binding is missing");
+  const path = "/op/v1/device/real/query";
+  const timestamp = Date.now().toString();
+  const signature = md5(path + "\r\n" + env.FOX_API_KEY + "\r\n" + timestamp);
+  const response = await fetch("https://www.foxesscloud.com" + path, {
+    method: "POST",
+    headers: { token: env.FOX_API_KEY, timestamp, signature, lang: "en", "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" },
+    body: JSON.stringify({ sns: [env.FOX_DEVICE_SN] }),
+    signal: AbortSignal.timeout(12000)
+  });
+  const result = await response.json();
+  if (!response.ok || result.errno !== 0) throw new Error("Fox ESS live reading failed: " + JSON.stringify(result));
+  const values = {};
+  for (const item of result.result?.[0]?.datas || []) values[String(item.variable || "").toLowerCase()] = Number(item.value || 0);
+  const now = new Date();
+  const parts = londonDateParts();
+  const date = parts.year + "-" + String(parts.month).padStart(2, "0") + "-" + String(parts.day).padStart(2, "0");
+  const key = "power-daily:" + date;
+  const raw = await env.ENERGY_DATA.get(key);
+  const record = raw ? JSON.parse(raw) : { date, samples: [] };
+  record.samples.push({
+    time: now.toISOString(),
+    solar: values.pvpower || 0,
+    fromBattery: values.batdischargepower || 0,
+    fromGrid: values.gridconsumptionpower || 0,
+    toCar: Number(evReading?.evPowerW || 0) / 1000,
+    toBattery: values.batchargepower || 0,
+    toGrid: values.feedinpower || 0
+  });
+  record.samples = record.samples.slice(-300);
+  record.updatedAt = now.toISOString();
+  await env.ENERGY_DATA.put(key, JSON.stringify(record));
+  return { date, samples: record.samples.length };
+}
+
+
 async function collectHypervoltDaily(env) {
   if (!env.ENERGY_DATA) throw new Error("ENERGY_DATA KV binding is missing");
   const reading = await getHypervoltReading(env);
+  await collectPowerSnapshot(env, reading).catch(error => console.error("Power history collection failed:", error.message));
   const currentWh = Number(reading.sessionEnergyWh);
   if (!Number.isFinite(currentWh) || currentWh < 0) {
     throw new Error("Hypervolt did not return a valid session energy reading");
@@ -578,13 +616,14 @@ export default {
     const isHypervolt = url.pathname === "/hypervolt";
     const isEvDaily = url.pathname === "/ev-daily";
     const isEvHistory = url.pathname === "/ev-history";
+    const isPowerHistory = url.pathname === "/power-history";
     const isDaily = url.pathname === "/daily";
     const isHistory = url.pathname === "/history";
 
     if (!env.DASHBOARD_PASSWORD) {
       return new Response("Worker secrets are missing", { status: 500, headers: cors });
     }
-    if (isHypervolt && (!env.HYPERVOLT_EMAIL || !env.HYPERVOLT_PASSWORD)) {
+    if ((isHypervolt || isPowerHistory) && (!env.HYPERVOLT_EMAIL || !env.HYPERVOLT_PASSWORD)) {
       return new Response("Hypervolt secrets are missing", { status: 500, headers: cors });
     }
     if (!isHypervolt && !isEvDaily && !isEvHistory && (!env.FOX_API_KEY || !env.FOX_DEVICE_SN)) {
