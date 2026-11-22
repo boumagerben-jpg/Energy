@@ -904,16 +904,23 @@ export default {
     if (isPowerHistory) {
       if (!env.ENERGY_DATA) return new Response(JSON.stringify({ error: "ENERGY_DATA KV binding is missing" }), { status: 500, headers: { ...cors, "Content-Type": "application/json" } });
       const requestedDate = url.searchParams.get("date");
-      const date = requestedDate || (() => { const d = londonDateParts(); return d.year + "-" + String(d.month).padStart(2, "0") + "-" + String(d.day).padStart(2, "0"); })();
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date + "T12:00:00Z"))) {
-        return new Response(JSON.stringify({ error: "Invalid power history date" }), { status: 400, headers: { ...cors, "Content-Type": "application/json" } });
-      }
+      const startDate = url.searchParams.get("start"), endDate = url.searchParams.get("end");
+      const validDate = v => /^\\d{4}-\\d{2}-\\d{2}$/.test(v || "") && Number.isFinite(Date.parse(v + "T12:00:00Z"));
       try {
-        const raw = await env.ENERGY_DATA.get("power-daily:" + date);
-        const stored = raw ? JSON.parse(raw) : { date, samples: [] };
-        return new Response(JSON.stringify(stored), { headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
-      } catch (error) {
-        return new Response(JSON.stringify({ error: "Could not read power history", details: error.message }), { status: 500, headers: { ...cors, "Content-Type": "application/json" } });
+        if (startDate || endDate) {
+          if (!validDate(startDate) || !validDate(endDate) || startDate > endDate) return new Response(JSON.stringify({error:"Invalid power history date range"}),{status:400,headers:{...cors,"Content-Type":"application/json"}});
+          const first=new Date(startDate+"T12:00:00Z"),last=new Date(endDate+"T12:00:00Z"),count=Math.round((last-first)/86400000)+1;
+          if(count>366)return new Response(JSON.stringify({error:"Power history range is limited to 366 days"}),{status:400,headers:{...cors,"Content-Type":"application/json"}});
+          const dates=Array.from({length:count},(_,i)=>new Date(first.getTime()+i*86400000).toISOString().slice(0,10));
+          const entries=await Promise.all(dates.map(async date=>{const raw=await env.ENERGY_DATA.get("power-daily:"+date);return [date,raw?(JSON.parse(raw).samples||[]):[]]}));
+          return new Response(JSON.stringify({start:startDate,end:endDate,days:Object.fromEntries(entries)}),{headers:{...cors,"Content-Type":"application/json","Cache-Control":"no-store"}});
+        }
+        const date=requestedDate||(()=>{const d=londonDateParts();return d.year+"-"+String(d.month).padStart(2,"0")+"-"+String(d.day).padStart(2,"0")})();
+        if(!validDate(date))return new Response(JSON.stringify({error:"Invalid power history date"}),{status:400,headers:{...cors,"Content-Type":"application/json"}});
+        const raw=await env.ENERGY_DATA.get("power-daily:"+date),stored=raw?JSON.parse(raw):{date,samples:[]};
+        return new Response(JSON.stringify(stored),{headers:{...cors,"Content-Type":"application/json","Cache-Control":"no-store"}});
+      } catch(error) {
+        return new Response(JSON.stringify({error:"Could not read power history",details:error.message}),{status:500,headers:{...cors,"Content-Type":"application/json"}});
       }
     }
 
