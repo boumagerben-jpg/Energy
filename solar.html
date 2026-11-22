@@ -211,6 +211,8 @@ async function loadHistory() {
   status.textContent="Loading FoxCloud history…";
   const dim=mode==="year"?"year":mode==="month"?"month":"week";
   const date=mode==="last7"?localISO(new Date(today.getFullYear(),today.getMonth(),today.getDate()-6,12)):selectedDate;
+  const cacheKey="solarGraph:"+dim+":"+date;let hasCached=false;
+  try{const saved=JSON.parse(localStorage.getItem(cacheKey)||"null");if(saved?.chart){document.getElementById("chart").innerHTML=saved.chart;status.textContent=(saved.status||"Cached solar history")+" · refreshing";hasCached=true;}}catch(e){}
   try {
     const p=await getPassword();
     const res=await fetch(API+"history?dimension="+dim+"&date="+encodeURIComponent(date),{headers:{"X-Dashboard-Password":p}});
@@ -224,9 +226,10 @@ async function loadHistory() {
     const prettyMonth=dateFromISO(date).toLocaleDateString("en-GB",{month:"long",year:"numeric"});
     const weekStart=localISO(dateFromISO(date));
     status.textContent=dim==="week"?"Daily generation · week starting "+dateFromISO(weekStart).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"}):dim==="month"?"Daily generation · "+prettyMonth:"Monthly generation · "+date.slice(0,4);
+    try{localStorage.setItem(cacheKey,JSON.stringify({chart:document.getElementById("chart").innerHTML,status:status.textContent,at:Date.now()}))}catch(e){}
   } catch(e) {
-    status.textContent=e.message;
-    document.getElementById("chart").innerHTML='<text x="320" y="125" fill="#9eafc3" font-size="14" text-anchor="middle">Historical data unavailable</text>';
+    status.textContent=hasCached?status.textContent+" · refresh failed":e.message;
+    if(!hasCached)document.getElementById("chart").innerHTML='<text x="320" y="125" fill="#9eafc3" font-size="14" text-anchor="middle">Historical data unavailable</text>';
   }
 }
 document.getElementById("chart").addEventListener("click",e=>{const bar=e.target.closest("rect[data-value]");if(bar)showBarValue(e.currentTarget,bar);});
