@@ -86,9 +86,18 @@ const specs={
  toBattery:{max:7,arc:"arc-to-battery",value:"v-to-battery"},
  toGrid:{max:7,arc:"arc-to-grid",value:"v-to-grid"}
 };
-let password=sessionStorage.getItem("energyPassword");
+let password=function getStoredEnergyPassword(){
+  const expiry=Number(localStorage.getItem("energyPasswordExpiry")||0);
+  if(expiry<=Date.now()){
+    localStorage.removeItem("energyPassword");
+    localStorage.removeItem("energyPasswordExpiry");
+    return null;
+  }
+  return localStorage.getItem("energyPassword");
+}
+getStoredEnergyPassword();
 async function getPassword(){
- if(!password){password=prompt("Enter your energy dashboard password");if(!password)throw new Error("Dashboard password required.");sessionStorage.setItem("energyPassword",password);}
+ if(!password){password=prompt("Enter your energy dashboard password");if(!password)throw new Error("Dashboard password required.");localStorage.setItem("energyPassword",password);localStorage.setItem("energyPasswordExpiry",String(Date.now()+14*24*60*60*1000));}
  return password;
 }
 function setGauge(key,watts){
@@ -104,7 +113,8 @@ async function load(){
    fetch(API,{headers:{"X-Dashboard-Password":p}}),
    fetch(API+"hypervolt",{headers:{"X-Dashboard-Password":p}})
   ]);
-  if(foxRes.status===401||evRes.status===401){sessionStorage.removeItem("energyPassword");password=null;throw new Error("Password incorrect. Refresh to try again.");}
+  if(foxRes.status===401||evRes.status===401){localStorage.removeItem("energyPassword");
+      localStorage.removeItem("energyPasswordExpiry");password=null;throw new Error("Password incorrect. Refresh to try again.");}
   const fox=await foxRes.json(),ev=await evRes.json();
   if(!foxRes.ok)throw new Error(fox.details||fox.error||"Fox ESS data unavailable");
   const vals={};
@@ -178,7 +188,8 @@ async function loadPowerHistory(){
  try{
   const p=await getPassword();
   const response=await fetch(API+"power-history",{headers:{"X-Dashboard-Password":p}});
-  if(response.status===401){sessionStorage.removeItem("energyPassword");password=null;throw new Error("Dashboard password incorrect.");}
+  if(response.status===401){localStorage.removeItem("energyPassword");
+      localStorage.removeItem("energyPasswordExpiry");password=null;throw new Error("Dashboard password incorrect.");}
   const data=await response.json();
   if(!response.ok)throw new Error(data.details||data.error||"Power history unavailable.");
   powerSamples=Array.isArray(data.samples)?data.samples:[];
