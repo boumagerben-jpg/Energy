@@ -159,6 +159,8 @@ async function loadHistory(){
  else if(mode==="week"){start=localISO(mondayOf(dateFromISO(selectedDate)));end=localISO(new Date(dateFromISO(start).getTime()+7*86400000))}
  else if(mode==="month"){const d=dateFromISO(selectedDate);start=localISO(new Date(d.getFullYear(),d.getMonth(),1,12));end=localISO(new Date(d.getFullYear(),d.getMonth()+1,1,12))}
  else{const y=Number(selectedDate.slice(0,4));start=y+"-01-01";end=(y+1)+"-01-01"}
+ const cacheKey="evDailyGraph:"+mode+":"+start+":"+end;let hasCached=false;
+ try{const saved=JSON.parse(localStorage.getItem(cacheKey)||"null");if(saved?.chart){document.getElementById("dailyChart").innerHTML=saved.chart;status.textContent=(saved.status||"Cached EV history")+" · refreshing";hasCached=true;}}catch(e){}
  try{
   const d=await getJSON("ev-history?start="+start+"&end="+end+"&intervalDate="+todayISO);
   if(mode==="year"){
@@ -174,7 +176,8 @@ async function loadHistory(){
     (mode==="year"?start.slice(0,4):mode==="month"?dateFromISO(selectedDate).toLocaleDateString("en-GB",{month:"long",year:"numeric"}):dateFromISO(start).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"}));
   if(mode==="week")status.textContent="Daily totals · week starting "+dateFromISO(start).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"});
   if(mode==="last7")status.textContent="Daily totals · last 7 days";
- }catch(e){status.textContent=e.message}
+  try{localStorage.setItem(cacheKey,JSON.stringify({chart:document.getElementById("dailyChart").innerHTML,status:status.textContent,at:Date.now()}))}catch(e){}
+ }catch(e){status.textContent=hasCached?status.textContent+" · refresh failed":e.message}
 }
 async function loadIntervals(){
  try{
