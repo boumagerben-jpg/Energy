@@ -905,7 +905,7 @@ export default {
       if (!env.ENERGY_DATA) return new Response(JSON.stringify({ error: "ENERGY_DATA KV binding is missing" }), { status: 500, headers: { ...cors, "Content-Type": "application/json" } });
       const requestedDate = url.searchParams.get("date");
       const startDate = url.searchParams.get("start"), endDate = url.searchParams.get("end");
-      const validDate = v => /^\\d{4}-\\d{2}-\\d{2}$/.test(v || "") && Number.isFinite(Date.parse(v + "T12:00:00Z"));
+      const validDate = v => /^\d{4}-\d{2}-\d{2}$/.test(v || "") && Number.isFinite(Date.parse(v + "T12:00:00Z"));
       try {
         if (startDate || endDate) {
           if (!validDate(startDate) || !validDate(endDate) || startDate > endDate) return new Response(JSON.stringify({error:"Invalid power history date range"}),{status:400,headers:{...cors,"Content-Type":"application/json"}});
