@@ -195,7 +195,7 @@ function renderPowerChart(){
 }
 document.querySelectorAll("[data-series]").forEach(input=>input.addEventListener("change",renderPowerChart));
 async function loadPowerHistory(){
- const cacheKey="energyPowerGraph:"+new Date().toLocaleDateString("en-CA",{timeZone:"Europe/London"});
+ const cacheKey="energyPowerGraph:"+isoDate(new Date());
  try{const cached=JSON.parse(localStorage.getItem(cacheKey)||"null");if(Array.isArray(cached)){powerSamples=cached;renderPowerChart();renderDailyTotals();}}catch(e){}
  try{
   const p=await getPassword();
