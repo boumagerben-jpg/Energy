@@ -84,7 +84,7 @@ h1{font-size:25px;margin:0}.sub{color:#9eafc3;font-size:13px;margin-top:4px}
 const API="https://energy-api.gerbenbouma.workers.dev/";
 const MAX_RATE=7.4,MAX_DAILY=50;
 const today=new Date(),todayISO=localISO(today);
-let password=function getStoredEnergyPassword(){
+function getStoredEnergyPassword(){
   const expiry=Number(localStorage.getItem("energyPasswordExpiry")||0);
   if(expiry<=Date.now()){
     localStorage.removeItem("energyPassword");
@@ -93,7 +93,7 @@ let password=function getStoredEnergyPassword(){
   }
   return localStorage.getItem("energyPassword");
 }
-getStoredEnergyPassword(),mode="last7",selectedDate=todayISO;
+let password=getStoredEnergyPassword(),mode="last7",selectedDate=todayISO;
 function localISO(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
 function dateFromISO(s){return new Date(s+"T12:00:00")}
 function mondayOf(d){const x=new Date(d);x.setDate(x.getDate()-((x.getDay()+6)%7));return x}
