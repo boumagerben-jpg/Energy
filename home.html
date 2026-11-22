@@ -195,6 +195,8 @@ function renderPowerChart(){
 }
 document.querySelectorAll("[data-series]").forEach(input=>input.addEventListener("change",renderPowerChart));
 async function loadPowerHistory(){
+ const cacheKey="energyPowerGraph:"+new Date().toLocaleDateString("en-CA",{timeZone:"Europe/London"});
+ try{const cached=JSON.parse(localStorage.getItem(cacheKey)||"null");if(Array.isArray(cached)){powerSamples=cached;renderPowerChart();renderDailyTotals();}}catch(e){}
  try{
   const p=await getPassword();
   const response=await fetch(API+"power-history",{headers:{"X-Dashboard-Password":p}});
@@ -203,6 +205,7 @@ async function loadPowerHistory(){
   const data=await response.json();
   if(!response.ok)throw new Error(data.details||data.error||"Power history unavailable.");
   powerSamples=Array.isArray(data.samples)?data.samples:[];
+  try{localStorage.setItem(cacheKey,JSON.stringify(powerSamples));}catch(e){}
   renderPowerChart();
   renderDailyTotals();
  }catch(e){document.getElementById("chart-status").textContent="Graph update failed: "+e.message;}
