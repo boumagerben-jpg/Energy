@@ -99,7 +99,7 @@ function showDaily(id, value) {
 
 async function loadEnergyData() {
   const status = document.getElementById("status");
-  let password = function getStoredEnergyPassword(){
+  function getStoredEnergyPassword(){
   const expiry=Number(localStorage.getItem("energyPasswordExpiry")||0);
   if(expiry<=Date.now()){
     localStorage.removeItem("energyPassword");
@@ -108,7 +108,7 @@ async function loadEnergyData() {
   }
   return localStorage.getItem("energyPassword");
 }
-getStoredEnergyPassword();
+let password=getStoredEnergyPassword();
 
   if (!password) {
     password = prompt("Enter your energy dashboard password");
