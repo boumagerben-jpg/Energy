@@ -149,6 +149,8 @@ async function loadHistory(){
  const status=document.getElementById("historyStatus");status.textContent="Contacting FoxCloud for grid history…";
  const dim=mode==="year"?"year":mode==="month"?"month":"week";
  const date=mode==="last7"?localISO(new Date(today.getFullYear(),today.getMonth(),today.getDate()-6,12)):selectedDate;
+ const cacheKey="gridGraphs:"+dim+":"+date;let hasCached=false;
+ try{const saved=JSON.parse(localStorage.getItem(cacheKey)||"null");if(saved?.importChart&&saved?.exportChart){document.getElementById("importChart").innerHTML=saved.importChart;document.getElementById("exportChart").innerHTML=saved.exportChart;status.textContent=(saved.status||"Cached grid history")+" · refreshing";hasCached=true;}}catch(e){}
  try{
   const p=await getPassword();
   const response=await fetch(API+"grid-history?dimension="+dim+"&date="+encodeURIComponent(date),{headers:{"X-Dashboard-Password":p},signal:AbortSignal.timeout(18000)});
@@ -160,7 +162,8 @@ async function loadHistory(){
   drawChart("exportChart",history.exportValues,makeLabels(dim,date,history.exportValues.length),"#27d889");
   const prettyMonth=dateFromISO(date).toLocaleDateString("en-GB",{month:"long",year:"numeric"});
   status.textContent=dim==="week"?"Daily totals · week starting "+dateFromISO(date).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"}):dim==="month"?"Daily totals · "+prettyMonth:"Monthly totals · "+date.slice(0,4);
- }catch(e){status.textContent=e.message;document.getElementById("importChart").innerHTML='<text x="320" y="125" fill="#9eafc3" font-size="14" text-anchor="middle">Historical data unavailable</text>';document.getElementById("exportChart").innerHTML='<text x="320" y="125" fill="#9eafc3" font-size="14" text-anchor="middle">Historical data unavailable</text>'}
+  try{localStorage.setItem(cacheKey,JSON.stringify({importChart:document.getElementById("importChart").innerHTML,exportChart:document.getElementById("exportChart").innerHTML,status:status.textContent,at:Date.now()}))}catch(e){}
+ }catch(e){status.textContent=hasCached?status.textContent+" · refresh failed":e.message;if(!hasCached){document.getElementById("importChart").innerHTML='<text x="320" y="125" fill="#9eafc3" font-size="14" text-anchor="middle">Historical data unavailable</text>';document.getElementById("exportChart").innerHTML='<text x="320" y="125" fill="#9eafc3" font-size="14" text-anchor="middle">Historical data unavailable</text>'}}
 }
 document.querySelectorAll("[data-mode]").forEach(btn=>btn.addEventListener("click",()=>{mode=btn.dataset.mode;document.querySelectorAll("[data-mode]").forEach(b=>b.classList.toggle("active",b===btn));if(mode==="last7")selectedDate=todayISO;if(mode==="week")selectedDate=localISO(mondayOf(dateFromISO(todayISO)));renderPicker();loadHistory()}));
 ["import","export"].forEach(kind=>document.getElementById(kind+"Chart").addEventListener("click",e=>{const bar=e.target.closest("rect[data-value]");if(bar)showBarValue(e.currentTarget,bar);}));
