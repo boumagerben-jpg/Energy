@@ -892,7 +892,7 @@ export default {
         }
         return new Response(JSON.stringify({
           start: startDate, end: endDate, dates, dailyKWh: records, intervalDate, intervals,
-          updatedAt: intervalRecord?.updatedAt || null
+          updatedAt: powerRecord?.updatedAt || null
         }), { headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
       } catch (error) {
         return new Response(JSON.stringify({ error: "Could not read EV history", details: error.message }), {
