@@ -99,7 +99,16 @@ function showDaily(id, value) {
 
 async function loadEnergyData() {
   const status = document.getElementById("status");
-  let password = sessionStorage.getItem("energyPassword");
+  let password = function getStoredEnergyPassword(){
+  const expiry=Number(localStorage.getItem("energyPasswordExpiry")||0);
+  if(expiry<=Date.now()){
+    localStorage.removeItem("energyPassword");
+    localStorage.removeItem("energyPasswordExpiry");
+    return null;
+  }
+  return localStorage.getItem("energyPassword");
+}
+getStoredEnergyPassword();
 
   if (!password) {
     password = prompt("Enter your energy dashboard password");
@@ -107,7 +116,8 @@ async function loadEnergyData() {
       status.textContent = "Password required.";
       return;
     }
-    sessionStorage.setItem("energyPassword", password);
+    localStorage.setItem("energyPassword", password);
+    localStorage.setItem("energyPasswordExpiry", String(Date.now() + 14 * 24 * 60 * 60 * 1000));
   }
 
   status.textContent = "Updating Fox ESS readings...";
@@ -118,7 +128,8 @@ async function loadEnergyData() {
     });
 
     if (response.status === 401) {
-      sessionStorage.removeItem("energyPassword");
+      localStorage.removeItem("energyPassword");
+      localStorage.removeItem("energyPasswordExpiry");
       status.textContent = "Password incorrect. Refresh to try again.";
       return;
     }
