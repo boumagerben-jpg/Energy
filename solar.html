@@ -73,7 +73,16 @@ const API = "https://energy-api.gerbenbouma.workers.dev/";
 const MAX_KW = 5.39;
 const today = new Date();
 const todayISO = localISO(today);
-let password = sessionStorage.getItem("energyPassword");
+let password = function getStoredEnergyPassword(){
+  const expiry=Number(localStorage.getItem("energyPasswordExpiry")||0);
+  if(expiry<=Date.now()){
+    localStorage.removeItem("energyPassword");
+    localStorage.removeItem("energyPasswordExpiry");
+    return null;
+  }
+  return localStorage.getItem("energyPassword");
+}
+getStoredEnergyPassword();
 let mode = "last7";
 let selectedDate = todayISO;
 
@@ -88,7 +97,7 @@ async function getPassword() {
   if (!password) {
     password = prompt("Enter your energy dashboard password");
     if (!password) throw new Error("Dashboard password required.");
-    sessionStorage.setItem("energyPassword",password);
+    localStorage.setItem("energyPassword",password);localStorage.setItem("energyPasswordExpiry",String(Date.now()+14*24*60*60*1000));
   }
   return password;
 }
@@ -100,7 +109,7 @@ async function loadLive() {
     const liveRes = await fetch(API,{headers:{"X-Dashboard-Password":p},signal:AbortSignal.timeout(15000)});
     const live = await liveRes.json();
     if (liveRes.status===401) {
-      sessionStorage.removeItem("energyPassword"); password=null;
+      localStorage.removeItem("energyPassword");localStorage.removeItem("energyPasswordExpiry"); password=null;
       throw new Error("Password incorrect. Refresh and try again.");
     }
     if (!liveRes.ok) throw new Error(live.details || live.error || "Live data unavailable");
@@ -129,7 +138,7 @@ async function loadLive() {
     const dailyRes=await fetch(API+"daily",{headers:{"X-Dashboard-Password":p},signal:AbortSignal.timeout(15000)});
     const daily=await dailyRes.json();
     if(dailyRes.status===401) {
-      sessionStorage.removeItem("energyPassword"); password=null;
+      localStorage.removeItem("energyPassword");localStorage.removeItem("energyPasswordExpiry"); password=null;
       throw new Error("Password incorrect. Refresh and try again.");
     }
     if(!dailyRes.ok) throw new Error(daily.details || daily.error || "Daily yield unavailable");
@@ -206,7 +215,7 @@ async function loadHistory() {
     const p=await getPassword();
     const res=await fetch(API+"history?dimension="+dim+"&date="+encodeURIComponent(date),{headers:{"X-Dashboard-Password":p}});
     const data=await res.json();
-    if(res.status===401){sessionStorage.removeItem("energyPassword");password=null;}
+    if(res.status===401){localStorage.removeItem("energyPassword");localStorage.removeItem("energyPasswordExpiry");password=null;}
     if(!res.ok) throw new Error(data.details||data.error||"Historical report unavailable");
     const vals=data.values||[];
     const labels=makeLabels(dim,date,vals.length);
