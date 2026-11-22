@@ -34,6 +34,7 @@ h1{font-size:25px;margin:0}.sub{color:#9eafc3;font-size:13px;margin-top:4px}
 .chart-status{color:#91a6bd;font-size:12px;text-align:center;min-height:18px;margin-top:6px}
 .daily-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px 8px}.daily-gauge-card{min-width:0;text-align:center}.daily-gauge-wrap{position:relative;width:100%;max-width:155px;margin:0 auto 5px}.daily-gauge{display:block;width:100%;height:auto}.daily-gauge-value{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column}.daily-value{font-size:clamp(19px,5vw,29px);font-weight:800;letter-spacing:-1px;line-height:1;white-space:nowrap}.daily-unit{font-size:13px;color:#aebed0;font-weight:500}.daily-scale{font-size:10px;color:#8298b1;margin-top:4px}
 .status{color:#91a6bd;font-size:12px;min-height:18px;margin:12px 2px 0}
+.tariff-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-bottom:14px}.tariff-field label{display:block;color:#aebed0;font-size:12px;margin-bottom:6px}.tariff-field input{width:100%;min-width:0;background:#101b2b;border:1px solid #40566f;border-radius:9px;padding:10px 7px;color:#f4f7fb;font-size:16px}.submit-tariffs,.period-button{background:#263b52;color:#f4f7fb;border:1px solid #40566f;border-radius:9px;padding:10px 14px;font-weight:700}.submit-tariffs{width:100%;margin-bottom:16px}.period-buttons{display:flex;gap:7px;justify-content:center;flex-wrap:wrap;margin-bottom:15px}.period-button{padding:8px 12px;font-size:12px}.period-button.active{background:#1768a5;border-color:#4c9cff}.cost-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px 8px}.cost-card{text-align:center;min-width:0}.cost-wrap{position:relative;width:100%;max-width:145px;margin:0 auto 5px}.cost-svg{display:block;width:100%;height:auto}.cost-number{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:clamp(18px,5vw,27px);font-weight:800;white-space:nowrap}.cost-label{font-size:12px;color:#e6edf5;font-weight:700;line-height:1.25}.tariff-status{color:#91a6bd;font-size:12px;text-align:center;min-height:18px;margin-top:10px}@media(max-width:420px){.tariff-fields{gap:6px}.tariff-field input{font-size:14px;padding:9px 5px}.cost-wrap{max-width:112px}.cost-number{font-size:clamp(16px,4.5vw,22px)}}
 @media(max-width:420px){body{padding:12px}.panel{padding:12px}.grid{gap:18px 4px}.gauge-wrap{max-width:118px}.value{font-size:clamp(17px,5vw,23px)}.unit{font-size:11px}}
 </style>
 </head>
@@ -76,6 +77,18 @@ h1{font-size:25px;margin:0}.sub{color:#9eafc3;font-size:13px;margin-top:4px}
   </div>
   <div class="chart-status" id="daily-status">Daily totals will update when today's history is available.</div>
 </section>
+<section class="panel" id="tariff-panel">
+<h2 class="section-title">Today's electricity costs</h2>
+<div class="tariff-fields">
+<div class="tariff-field"><label for="offpeak-rate">Off-peak tariff (p/kWh)</label><input id="offpeak-rate" type="number" min="0" step="0.01" value="9.05"></div>
+<div class="tariff-field"><label for="peak-rate">Peak tariff (p/kWh)</label><input id="peak-rate" type="number" min="0" step="0.01" value="31.74"></div>
+<div class="tariff-field"><label for="export-rate">Export tariff (p/kWh)</label><input id="export-rate" type="number" min="0" step="0.01" value="12.00"></div></div>
+<button class="submit-tariffs" id="submit-tariffs" type="button">Submit tariffs</button>
+<div class="cost-grid">
+<div class="cost-card"><div class="cost-label">Off-peak import</div><div class="cost-wrap"><svg class="cost-svg" viewBox="0 0 240 240"><circle cx="120" cy="120" r="91" fill="none" stroke="#53657a" stroke-width="13" pathLength="100" stroke-dasharray="88 12" transform="rotate(111.6 120 120)"/><circle id="cost-arc-daily-off" cx="120" cy="120" r="91" fill="none" stroke="#4c9cff" stroke-width="13" pathLength="100" stroke-dasharray="0 100" transform="rotate(111.6 120 120)"/></svg><div class="cost-number" id="cost-daily-off">£0.00</div></div><div class="scale">Today</div></div><div class="cost-card"><div class="cost-label">Peak import</div><div class="cost-wrap"><svg class="cost-svg" viewBox="0 0 240 240"><circle cx="120" cy="120" r="91" fill="none" stroke="#53657a" stroke-width="13" pathLength="100" stroke-dasharray="88 12" transform="rotate(111.6 120 120)"/><circle id="cost-arc-daily-peak" cx="120" cy="120" r="91" fill="none" stroke="#ff5964" stroke-width="13" pathLength="100" stroke-dasharray="0 100" transform="rotate(111.6 120 120)"/></svg><div class="cost-number" id="cost-daily-peak">£0.00</div></div><div class="scale">Today</div></div><div class="cost-card"><div class="cost-label">Export credit</div><div class="cost-wrap"><svg class="cost-svg" viewBox="0 0 240 240"><circle cx="120" cy="120" r="91" fill="none" stroke="#53657a" stroke-width="13" pathLength="100" stroke-dasharray="88 12" transform="rotate(111.6 120 120)"/><circle id="cost-arc-daily-export" cx="120" cy="120" r="91" fill="none" stroke="#27d889" stroke-width="13" pathLength="100" stroke-dasharray="0 100" transform="rotate(111.6 120 120)"/></svg><div class="cost-number" id="cost-daily-export">£0.00</div></div><div class="scale">Today</div></div>
+</div><div class="chart-section"><h2 class="chart-title">Electricity costs by period</h2>
+<div class="period-buttons" id="cost-periods"><button class="period-button active" data-period="last7">Last 7 days</button><button class="period-button" data-period="week">Week</button><button class="period-button" data-period="month">Month</button><button class="period-button" data-period="year">Year</button></div>
+<div class="cost-grid"><div class="cost-card"><div class="cost-label">Off-peak import</div><div class="cost-wrap"><svg class="cost-svg" viewBox="0 0 240 240"><circle cx="120" cy="120" r="91" fill="none" stroke="#53657a" stroke-width="13" pathLength="100" stroke-dasharray="88 12" transform="rotate(111.6 120 120)"/><circle id="cost-arc-period-off" cx="120" cy="120" r="91" fill="none" stroke="#4c9cff" stroke-width="13" pathLength="100" stroke-dasharray="0 100" transform="rotate(111.6 120 120)"/></svg><div class="cost-number" id="cost-period-off">£0.00</div></div><div class="scale" id="period-caption-off">Last 7 days</div></div><div class="cost-card"><div class="cost-label">Peak import</div><div class="cost-wrap"><svg class="cost-svg" viewBox="0 0 240 240"><circle cx="120" cy="120" r="91" fill="none" stroke="#53657a" stroke-width="13" pathLength="100" stroke-dasharray="88 12" transform="rotate(111.6 120 120)"/><circle id="cost-arc-period-peak" cx="120" cy="120" r="91" fill="none" stroke="#ff5964" stroke-width="13" pathLength="100" stroke-dasharray="0 100" transform="rotate(111.6 120 120)"/></svg><div class="cost-number" id="cost-period-peak">£0.00</div></div><div class="scale" id="period-caption-peak">Last 7 days</div></div><div class="cost-card"><div class="cost-label">Export credit</div><div class="cost-wrap"><svg class="cost-svg" viewBox="0 0 240 240"><circle cx="120" cy="120" r="91" fill="none" stroke="#53657a" stroke-width="13" pathLength="100" stroke-dasharray="88 12" transform="rotate(111.6 120 120)"/><circle id="cost-arc-period-export" cx="120" cy="120" r="91" fill="none" stroke="#27d889" stroke-width="13" pathLength="100" stroke-dasharray="0 100" transform="rotate(111.6 120 120)"/></svg><div class="cost-number" id="cost-period-export">£0.00</div></div><div class="scale" id="period-caption-export">Last 7 days</div></div></div><div class="tariff-status" id="tariff-status">Loading recorded power readings…</div></div></section>
 <script>
 const API="https://energy-api.gerbenbouma.workers.dev/";
 const specs={
@@ -86,16 +99,12 @@ const specs={
  toBattery:{max:7,arc:"arc-to-battery",value:"v-to-battery"},
  toGrid:{max:7,arc:"arc-to-grid",value:"v-to-grid"}
 };
-let password=function getStoredEnergyPassword(){
-  const expiry=Number(localStorage.getItem("energyPasswordExpiry")||0);
-  if(expiry<=Date.now()){
-    localStorage.removeItem("energyPassword");
-    localStorage.removeItem("energyPasswordExpiry");
-    return null;
-  }
-  return localStorage.getItem("energyPassword");
+function getStoredEnergyPassword(){
+ const expiry=Number(localStorage.getItem("energyPasswordExpiry")||0);
+ if(expiry<=Date.now()){localStorage.removeItem("energyPassword");localStorage.removeItem("energyPasswordExpiry");return null;}
+ return localStorage.getItem("energyPassword");
 }
-getStoredEnergyPassword();
+let password=getStoredEnergyPassword();
 async function getPassword(){
  if(!password){password=prompt("Enter your energy dashboard password");if(!password)throw new Error("Dashboard password required.");localStorage.setItem("energyPassword",password);localStorage.setItem("energyPasswordExpiry",String(Date.now()+14*24*60*60*1000));}
  return password;
@@ -197,7 +206,23 @@ async function loadPowerHistory(){
   renderDailyTotals();
  }catch(e){document.getElementById("chart-status").textContent="Graph update failed: "+e.message;}
 }
-load().then(loadPowerHistory);setInterval(load,300000);setInterval(loadPowerHistory,300000);
+
+const tariffDefaults={off:9.05,peak:31.74,export:12};let tariffRates={...tariffDefaults},tariffDays={},selectedCostPeriod="last7";
+const periodLabels={last7:"Last 7 days",week:"This week",month:"This month",year:"This year"};
+function londonParts(iso){const p=Object.fromEntries(new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/London",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(new Date(iso)).map(x=>[x.type,x.value]));return {minutes:Number(p.hour)*60+Number(p.minute)}}
+function integrateTariffDay(samples){const pts=(samples||[]).map(s=>({t:new Date(s.time).getTime(),g:Math.max(0,Number(s.fromGrid)||0),e:Math.max(0,Number(s.toGrid)||0)})).filter(x=>Number.isFinite(x.t)).sort((a,b)=>a.t-b.t);let off=0,peak=0,exportKwh=0,covered=0;for(let i=1;i<pts.length;i++){const a=pts[i-1],b=pts[i],mins=(b.t-a.t)/60000;if(mins<=0||mins>10)continue;const m=londonParts(new Date((a.t+b.t)/2).toISOString()).minutes,h=mins/60,imp=(a.g+b.g)/2*h; if(m>=30&&m<330)off+=imp;else peak+=imp;exportKwh+=(a.e+b.e)/2*h;covered+=mins;}return {off,peak,exportKwh,covered}}
+function isoDate(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x}
+function periodRange(period){const t=new Date();t.setHours(0,0,0,0);let s;if(period==="last7")s=addDays(t,-6);else if(period==="week")s=addDays(t,-((t.getDay()+6)%7));else if(period==="month")s=new Date(t.getFullYear(),t.getMonth(),1);else s=new Date(t.getFullYear(),0,1);return {start:isoDate(s),end:isoDate(t)}}
+function setCostGauge(id,v,max){document.getElementById("cost-"+id).textContent="£"+v.toFixed(2);document.getElementById("cost-arc-"+id).setAttribute("stroke-dasharray",(Math.min(88,v/Math.max(max,.01)*88)).toFixed(2)+" 100")}
+function updateCostGauges(){const today=isoDate(new Date()),d=tariffDays[today]||{off:0,peak:0,exportKwh:0};const daily=[d.off*tariffRates.off/100,d.peak*tariffRates.peak/100,d.exportKwh*tariffRates.export/100],dm=Math.max(1,...daily);["off","peak","export"].forEach((k,i)=>setCostGauge("daily-"+k,daily[i],dm));const range=periodRange(selectedCostPeriod);let sums={off:0,peak:0,exportKwh:0,covered:0};for(let x=new Date(range.start+"T12:00:00");isoDate(x)<=range.end;x=addDays(x,1)){const v=tariffDays[isoDate(x)];if(v)for(const k of Object.keys(sums))sums[k]+=v[k]||0}const vals=[sums.off*tariffRates.off/100,sums.peak*tariffRates.peak/100,sums.exportKwh*tariffRates.export/100],pm=Math.max(1,...vals);["off","peak","export"].forEach((k,i)=>{setCostGauge("period-"+k,vals[i],pm);document.getElementById("period-caption-"+k).textContent=periodLabels[selectedCostPeriod]});document.getElementById("tariff-status").textContent="Recorded power coverage: "+sums.covered.toFixed(0)+" minutes · "+range.start+" to "+range.end}
+function applyTariffs(){const v={off:Number(document.getElementById("offpeak-rate").value),peak:Number(document.getElementById("peak-rate").value),export:Number(document.getElementById("export-rate").value)};if(Object.values(v).some(x=>!Number.isFinite(x)||x<0)){document.getElementById("tariff-status").textContent="Enter valid non-negative tariff values.";return}tariffRates=v;localStorage.setItem("energyTariffRates",JSON.stringify(v));updateCostGauges()}
+async function loadTariffHistory(){try{const p=await getPassword(),r=periodRange(selectedCostPeriod),res=await fetch(API+"power-history?start="+r.start+"&end="+r.end,{headers:{"X-Dashboard-Password":p},cache:"no-store"});if(res.status===401){localStorage.removeItem("energyPassword");localStorage.removeItem("energyPasswordExpiry");password=null;throw Error("Dashboard password incorrect.")}if(!res.ok)throw Error("Power history unavailable");const data=await res.json();tariffDays={};for(const [date,samples] of Object.entries(data.days||{}))tariffDays[date]=integrateTariffDay(samples);updateCostGauges()}catch(e){document.getElementById("tariff-status").textContent="Cost calculation unavailable: "+e.message}}
+const savedTariffs=JSON.parse(localStorage.getItem("energyTariffRates")||"null");if(savedTariffs&&["off","peak","export"].every(k=>Number.isFinite(Number(savedTariffs[k]))&&Number(savedTariffs[k])>=0))tariffRates={off:Number(savedTariffs.off),peak:Number(savedTariffs.peak),export:Number(savedTariffs.export)};
+document.getElementById("offpeak-rate").value=tariffRates.off.toFixed(2);document.getElementById("peak-rate").value=tariffRates.peak.toFixed(2);document.getElementById("export-rate").value=tariffRates.export.toFixed(2);
+document.getElementById("submit-tariffs").addEventListener("click",applyTariffs);
+document.querySelectorAll("[data-period]").forEach(b=>b.addEventListener("click",()=>{selectedCostPeriod=b.dataset.period;document.querySelectorAll("[data-period]").forEach(x=>x.classList.toggle("active",x===b));loadTariffHistory()}));
+
+load().then(loadPowerHistory);setInterval(load,300000);setInterval(loadPowerHistory,300000);loadTariffHistory();setInterval(loadTariffHistory,300000);
 </script>
 </body>
 </html>
