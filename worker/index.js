@@ -890,6 +890,13 @@ export default {
           const averagePowerKw = (previous.power + current.power) / 2;
           intervals[index] += averagePowerKw * elapsedMs / 3600000;
         }
+        // For the current day, use the same integrated power samples as the
+        // daily gauge and half-hour chart. Stored Hypervolt session totals can
+        // double-count today's energy when a session counter is collected late.
+        const currentDayIndex = dates.indexOf(intervalDate);
+        if (currentDayIndex !== -1) {
+          records[currentDayIndex] = intervals.reduce((sum, value) => sum + value, 0);
+        }
         return new Response(JSON.stringify({
           start: startDate, end: endDate, dates, dailyKWh: records, intervalDate, intervals,
           updatedAt: powerRecord?.updatedAt || null
