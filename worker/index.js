@@ -941,13 +941,35 @@ export default {
         });
       }
       try {
-        const raw = await env.ENERGY_DATA.get("ev-daily:" + date);
-        const stored = raw ? JSON.parse(raw) : { date, energyWh: 0, samples: 0 };
+        // Use the same five-minute power samples as the half-hour chart.
+        // This avoids double-counting when Hypervolt starts a new session.
+        const raw = await env.ENERGY_DATA.get("power-daily:" + date);
+        const record = raw ? JSON.parse(raw) : null;
+        const samples = Array.isArray(record?.samples) ? record.samples : [];
+        const ordered = samples
+          .map(sample => ({ time: Date.parse(sample.time), power: Number(sample.toCar) }))
+          .filter(sample => Number.isFinite(sample.time) && Number.isFinite(sample.power) && sample.power >= 0)
+          .sort((a, b) => a.time - b.time);
+        let energyKWh = 0;
+        for (let i = 1; i < ordered.length; i++) {
+          const previous = ordered[i - 1], current = ordered[i];
+          const elapsedMs = current.time - previous.time;
+          if (elapsedMs <= 0 || elapsedMs > 10 * 60 * 1000) continue;
+          const midpoint = new Date(previous.time + elapsedMs / 2);
+          const parts = new Intl.DateTimeFormat("en-GB", {
+            timeZone: "Europe/London", year: "numeric", month: "2-digit",
+            day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+          }).formatToParts(midpoint);
+          const get = type => parts.find(part => part.type === type).value;
+          const sampleDate = get("year") + "-" + get("month") + "-" + get("day");
+          if (sampleDate !== date) continue;
+          energyKWh += ((previous.power + current.power) / 2) * elapsedMs / 3600000;
+        }
         return new Response(JSON.stringify({
           date,
-          evChargingKWh: Number((Number(stored.energyWh || 0) / 1000).toFixed(3)),
-          samples: Number(stored.samples || 0),
-          updatedAt: stored.updatedAt || null
+          evChargingKWh: Number(energyKWh.toFixed(3)),
+          samples: samples.length,
+          updatedAt: record?.updatedAt || null
         }), { headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
       } catch (error) {
         return new Response(JSON.stringify({ error: "Could not read EV daily total", details: error.message }), {
