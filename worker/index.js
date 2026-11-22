@@ -854,9 +854,42 @@ export default {
           const stored = raw ? JSON.parse(raw) : null;
           return stored ? Number(stored.energyWh || 0) / 1000 : 0;
         }));
-        const intervalRaw = await env.ENERGY_DATA.get("ev-daily:" + intervalDate);
-        const intervalRecord = intervalRaw ? JSON.parse(intervalRaw) : null;
-        const intervals = Array.isArray(intervalRecord?.intervalsWh) ? intervalRecord.intervalsWh.map(value => Number(value || 0) / 1000) : Array(48).fill(0);
+        // Rebuild half-hour EV energy from timestamped five-minute power samples.
+        // The cumulative Hypervolt session counter can jump by the whole session total
+        // after a delayed collection, so it must not determine the time-of-use graph.
+        const powerRaw = await env.ENERGY_DATA.get("power-daily:" + intervalDate);
+        const powerRecord = powerRaw ? JSON.parse(powerRaw) : null;
+        const samples = Array.isArray(powerRecord?.samples) ? powerRecord.samples : [];
+        const intervals = Array(48).fill(0);
+        const londonParts = timestamp => {
+          const parts = new Intl.DateTimeFormat("en-GB", {
+            timeZone: "Europe/London", year: "numeric", month: "2-digit",
+            day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+          }).formatToParts(new Date(timestamp));
+          const get = type => parts.find(part => part.type === type).value;
+          return {
+            date: get("year") + "-" + get("month") + "-" + get("day"),
+            hour: Number(get("hour")),
+            minute: Number(get("minute"))
+          };
+        };
+        const ordered = samples
+          .map(sample => ({ time: Date.parse(sample.time), power: Number(sample.toCar) }))
+          .filter(sample => Number.isFinite(sample.time) && Number.isFinite(sample.power) && sample.power >= 0)
+          .sort((a, b) => a.time - b.time);
+        for (let i = 1; i < ordered.length; i++) {
+          const previous = ordered[i - 1];
+          const current = ordered[i];
+          const elapsedMs = current.time - previous.time;
+          // Ignore long collection gaps rather than inventing energy across them.
+          if (elapsedMs <= 0 || elapsedMs > 10 * 60 * 1000) continue;
+          const midpoint = previous.time + elapsedMs / 2;
+          const local = londonParts(midpoint);
+          if (local.date !== intervalDate) continue;
+          const index = Math.min(47, Math.floor((local.hour * 60 + local.minute) / 30));
+          const averagePowerKw = (previous.power + current.power) / 2;
+          intervals[index] += averagePowerKw * elapsedMs / 3600000;
+        }
         return new Response(JSON.stringify({
           start: startDate, end: endDate, dates, dailyKWh: records, intervalDate, intervals,
           updatedAt: intervalRecord?.updatedAt || null
