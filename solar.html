@@ -73,7 +73,7 @@ const API = "https://energy-api.gerbenbouma.workers.dev/";
 const MAX_KW = 5.39;
 const today = new Date();
 const todayISO = localISO(today);
-let password = function getStoredEnergyPassword(){
+function getStoredEnergyPassword(){
   const expiry=Number(localStorage.getItem("energyPasswordExpiry")||0);
   if(expiry<=Date.now()){
     localStorage.removeItem("energyPassword");
@@ -82,7 +82,7 @@ let password = function getStoredEnergyPassword(){
   }
   return localStorage.getItem("energyPassword");
 }
-getStoredEnergyPassword();
+let password=getStoredEnergyPassword();
 let mode = "last7";
 let selectedDate = todayISO;
 
