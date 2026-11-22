@@ -84,13 +84,22 @@ h1{font-size:25px;margin:0}.sub{color:#9eafc3;font-size:13px;margin-top:4px}
 const API="https://energy-api.gerbenbouma.workers.dev/";
 const MAX_RATE=7.4,MAX_DAILY=50;
 const today=new Date(),todayISO=localISO(today);
-let password=sessionStorage.getItem("energyPassword"),mode="last7",selectedDate=todayISO;
+let password=function getStoredEnergyPassword(){
+  const expiry=Number(localStorage.getItem("energyPasswordExpiry")||0);
+  if(expiry<=Date.now()){
+    localStorage.removeItem("energyPassword");
+    localStorage.removeItem("energyPasswordExpiry");
+    return null;
+  }
+  return localStorage.getItem("energyPassword");
+}
+getStoredEnergyPassword(),mode="last7",selectedDate=todayISO;
 function localISO(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
 function dateFromISO(s){return new Date(s+"T12:00:00")}
 function mondayOf(d){const x=new Date(d);x.setDate(x.getDate()-((x.getDay()+6)%7));return x}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-async function getPassword(){if(!password){password=prompt("Enter your energy dashboard password");if(!password)throw new Error("Dashboard password required");sessionStorage.setItem("energyPassword",password)}return password}
-async function getJSON(path){const p=await getPassword();const r=await fetch(API+path,{headers:{"X-Dashboard-Password":p},cache:"no-store"});const d=await r.json();if(r.status===401){sessionStorage.removeItem("energyPassword");password=null}if(!r.ok)throw new Error(d.details||d.error||"EV data unavailable");return d}
+async function getPassword(){if(!password){password=prompt("Enter your energy dashboard password");if(!password)throw new Error("Dashboard password required");localStorage.setItem("energyPassword",password);localStorage.setItem("energyPasswordExpiry",String(Date.now()+14*24*60*60*1000))}return password}
+async function getJSON(path){const p=await getPassword();const r=await fetch(API+path,{headers:{"X-Dashboard-Password":p},cache:"no-store"});const d=await r.json();if(r.status===401){localStorage.removeItem("energyPassword");localStorage.removeItem("energyPasswordExpiry");password=null}if(!r.ok)throw new Error(d.details||d.error||"EV data unavailable");return d}
 function gauge(id,value,max){document.getElementById(id).setAttribute("stroke-dasharray",(Math.max(0,Math.min(value,max))/max*88).toFixed(2)+" 100")}
 async function loadLive(){
  try{
