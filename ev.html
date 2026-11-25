@@ -62,9 +62,9 @@ h1{font-size:25px;margin:0}.sub{color:#9eafc3;font-size:13px;margin-top:4px}
   </div>
 </section>
 <section class="panel">
-  <h2 class="section-title">Today's charging · 30-minute intervals</h2>
-  <div class="chart-wrap"><svg id="intervalChart" viewBox="0 0 640 270" role="img" aria-label="EV energy charged in each half-hour interval today"></svg></div>
-  <div class="legend"><span><i class="key"></i>Energy per 30 minutes</span></div>
+  <h2 class="section-title">Today's charging · hourly intervals</h2>
+  <div class="chart-wrap"><svg id="intervalChart" viewBox="0 0 640 270" role="img" aria-label="EV energy charged in each hourly interval today"></svg></div>
+  <div class="legend"><span><i class="key"></i>Energy per hour</span></div>
   <div class="status" id="intervalStatus">Loading today's intervals…</div>
 </section>
 <section class="panel">
@@ -122,12 +122,17 @@ function showBarValue(svg,bar){
  g.append(r,t);svg.append(g);
 }
 function drawInterval(values){
- const svg=document.getElementById("intervalChart"),W=640,H=270,L=58,R=12,T=12,B=54,vals=values.map(v=>Math.max(0,Number(v)||0)),max=Math.max(.1,...vals)*1.15,ph=H-T-B,pw=W-L-R;
- let s='<text x="14" y="'+(T+ph/2)+'" fill="#aebed0" font-size="14" text-anchor="middle" transform="rotate(-90 14 '+(T+ph/2)+')">kWh / 30 min</text>';
+ const svg=document.getElementById("intervalChart"),W=640,H=270,L=58,R=12,T=12,B=54;
+ const vals=Array.from({length:24},(_,i)=>Math.max(0,Number(values[i])||0));
+ const max=Math.max(.1,...vals)*1.15,ph=H-T-B,pw=W-L-R,slot=pw/24,bw=Math.max(5,slot*.62);
+ let s='<text x="14" y="'+(T+ph/2)+'" fill="#aebed0" font-size="14" text-anchor="middle" transform="rotate(-90 14 '+(T+ph/2)+')">kWh / hour</text>';
  for(let i=0;i<=4;i++){const y=T+ph*i/4,v=max*(1-i/4);s+='<line x1="'+L+'" y1="'+y+'" x2="'+(W-R)+'" y2="'+y+'" stroke="#40536a"/><text x="'+(L-8)+'" y="'+(y+4)+'" fill="#9eafc3" font-size="14" text-anchor="end">'+v.toFixed(max<2?2:1)+'</text>'}
- const pts=vals.map((v,i)=>({x:L+i*pw/47,y:T+ph-v/max*ph,v}));
- s+='<polyline points="'+pts.map(p=>p.x.toFixed(1)+","+p.y.toFixed(1)).join(" ")+'" fill="none" stroke="#438fe3" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>';
- pts.forEach((p,i)=>{if(p.v>0)s+='<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="3" fill="#438fe3"><title>'+String(Math.floor(i/2)).padStart(2,"0")+":"+(i%2?"30":"00")+" · "+p.v.toFixed(3)+' kWh</title></circle>';if(i%4===0)s+='<text x="'+p.x.toFixed(1)+'" y="'+(H-22)+'" fill="#aebed0" font-size="12" text-anchor="middle">'+String(Math.floor(i/2)).padStart(2,"0")+":"+(i%2?"30":"00")+'</text>'});
+ vals.forEach((v,i)=>{
+  const x=L+i*slot+(slot-bw)/2,h=v/max*ph,y=T+ph-h;
+  s+='<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(0,h).toFixed(1)+'" rx="3" fill="#438fe3"><title>'+String(i).padStart(2,"0")+':00–'+String(i+1).padStart(2,"0")+':00 · '+v.toFixed(3)+' kWh</title></rect>';
+  s+='<text x="'+(x+bw/2).toFixed(1)+'" y="'+(H-22)+'" fill="#aebed0" font-size="12" text-anchor="middle">'+String(i).padStart(2,"0")+'</text>';
+ });
+ s+='<text x="'+(L+pw/2)+'" y="'+(H-4)+'" fill="#aebed0" font-size="12" text-anchor="middle">Hour of day (UK time)</text>';
  svg.innerHTML=s;
 }
 function renderPicker(){
@@ -159,8 +164,7 @@ async function loadHistory(){
  else if(mode==="week"){start=localISO(mondayOf(dateFromISO(selectedDate)));end=localISO(new Date(dateFromISO(start).getTime()+7*86400000))}
  else if(mode==="month"){const d=dateFromISO(selectedDate);start=localISO(new Date(d.getFullYear(),d.getMonth(),1,12));end=localISO(new Date(d.getFullYear(),d.getMonth()+1,1,12))}
  else{const y=Number(selectedDate.slice(0,4));start=y+"-01-01";end=(y+1)+"-01-01"}
- const cacheKey="evDailyGraph:"+mode+":"+start+":"+end;let hasCached=false;
- try{const saved=JSON.parse(localStorage.getItem(cacheKey)||"null");if(saved?.chart){document.getElementById("dailyChart").innerHTML=saved.chart;status.textContent=(saved.status||"Cached EV history")+" · refreshing";hasCached=true;}}catch(e){}
+ let hasCached=false;
  try{
   const d=await getJSON("ev-history?start="+start+"&end="+end+"&intervalDate="+todayISO);
   if(mode==="year"){
@@ -176,7 +180,7 @@ async function loadHistory(){
     (mode==="year"?start.slice(0,4):mode==="month"?dateFromISO(selectedDate).toLocaleDateString("en-GB",{month:"long",year:"numeric"}):dateFromISO(start).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"}));
   if(mode==="week")status.textContent="Daily totals · week starting "+dateFromISO(start).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"});
   if(mode==="last7")status.textContent="Daily totals · last 7 days";
-  try{localStorage.setItem(cacheKey,JSON.stringify({chart:document.getElementById("dailyChart").innerHTML,status:status.textContent,at:Date.now()}))}catch(e){}
+
  }catch(e){status.textContent=hasCached?status.textContent+" · refresh failed":e.message}
 }
 async function loadIntervals(){
