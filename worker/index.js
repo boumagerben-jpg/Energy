@@ -835,9 +835,11 @@ export default {
       }
       const startDate = url.searchParams.get("start") || "";
       const endDate = url.searchParams.get("end") || "";
-      const intervalDate = url.searchParams.get("intervalDate") || londonDateParts().year + "-" +
-        String(londonDateParts().month).padStart(2, "0") + "-" + String(londonDateParts().day).padStart(2, "0");
-      const validDate = value => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value + "T12:00:00Z"));
+      const intervalDate = url.searchParams.get("intervalDate") || (() => {
+        const d = londonDateParts();
+        return d.year + "-" + String(d.month).padStart(2, "0") + "-" + String(d.day).padStart(2, "0");
+      })();
+      const validDate = value => /^\\d{4}-\\d{2}-\\d{2}$/.test(value) && Number.isFinite(Date.parse(value + "T12:00:00Z"));
       if (!validDate(startDate) || !validDate(endDate) || !validDate(intervalDate) ||
           endDate <= startDate || (Date.parse(endDate + "T12:00:00Z") - Date.parse(startDate + "T12:00:00Z")) / 86400000 > 367) {
         return new Response(JSON.stringify({ error: "Invalid EV history date range" }), {
@@ -849,57 +851,35 @@ export default {
         for (let d = new Date(startDate + "T12:00:00Z"); d < new Date(endDate + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + 1)) {
           dates.push(d.toISOString().slice(0, 10));
         }
-        const records = await Promise.all(dates.map(async date => {
-          const raw = await env.ENERGY_DATA.get("ev-daily:" + date);
-          const stored = raw ? JSON.parse(raw) : null;
-          return stored ? Number(stored.energyWh || 0) / 1000 : 0;
-        }));
-        // Rebuild half-hour EV energy from timestamped five-minute power samples.
-        // The cumulative Hypervolt session counter can jump by the whole session total
-        // after a delayed collection, so it must not determine the time-of-use graph.
-        const powerRaw = await env.ENERGY_DATA.get("power-daily:" + intervalDate);
-        const powerRecord = powerRaw ? JSON.parse(powerRaw) : null;
-        const samples = Array.isArray(powerRecord?.samples) ? powerRecord.samples : [];
-        const intervals = Array(48).fill(0);
-        const londonParts = timestamp => {
-          const parts = new Intl.DateTimeFormat("en-GB", {
-            timeZone: "Europe/London", year: "numeric", month: "2-digit",
-            day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23"
-          }).formatToParts(new Date(timestamp));
-          const get = type => parts.find(part => part.type === type).value;
-          return {
-            date: get("year") + "-" + get("month") + "-" + get("day"),
-            hour: Number(get("hour")),
-            minute: Number(get("minute"))
-          };
+        const loadDay = async date => {
+          const [dailyRaw, powerRaw] = await Promise.all([
+            env.ENERGY_DATA.get("ev-daily:" + date),
+            env.ENERGY_DATA.get("power-daily:" + date)
+          ]);
+          return { date, daily: dailyRaw ? JSON.parse(dailyRaw) : null, power: powerRaw ? JSON.parse(powerRaw) : null };
         };
-        const ordered = samples
-          .map(sample => ({ time: Date.parse(sample.time), power: Number(sample.toCar) }))
-          .filter(sample => Number.isFinite(sample.time) && Number.isFinite(sample.power) && sample.power >= 0)
-          .sort((a, b) => a.time - b.time);
-        for (let i = 1; i < ordered.length; i++) {
-          const previous = ordered[i - 1];
-          const current = ordered[i];
-          const elapsedMs = current.time - previous.time;
-          // Ignore long collection gaps rather than inventing energy across them.
-          if (elapsedMs <= 0 || elapsedMs > 10 * 60 * 1000) continue;
-          const midpoint = previous.time + elapsedMs / 2;
-          const local = londonParts(midpoint);
-          if (local.date !== intervalDate) continue;
-          const index = Math.min(47, Math.floor((local.hour * 60 + local.minute) / 30));
-          const averagePowerKw = (previous.power + current.power) / 2;
-          intervals[index] += averagePowerKw * elapsedMs / 3600000;
-        }
-        // For the current day, use the same integrated power samples as the
-        // daily gauge and half-hour chart. Stored Hypervolt session totals can
-        // double-count today's energy when a session counter is collected late.
-        const currentDayIndex = dates.indexOf(intervalDate);
-        if (currentDayIndex !== -1) {
-          records[currentDayIndex] = intervals.reduce((sum, value) => sum + value, 0);
-        }
+        const storedDays = await Promise.all(dates.map(loadDay));
+        const hasChargingSamples = record =>
+          Array.isArray(record?.samples) &&
+          record.samples.some(sample => Number.isFinite(Number(sample.toCar)) && Number(sample.toCar) > 0.05);
+        const dailyKWh = storedDays.map(day => {
+          if (!day.daily) return 0;
+          const samples = day.power?.samples;
+          if (Array.isArray(samples) && samples.length && !hasChargingSamples(day.power)) return 0;
+          return Math.max(0, Number(day.daily.energyWh || 0) / 1000);
+        });
+        const intervalDay = storedDays.find(day => day.date === intervalDate) || await loadDay(intervalDate);
+        const halfHours = Array.isArray(intervalDay.daily?.intervalsWh) && intervalDay.daily.intervalsWh.length === 48
+          ? intervalDay.daily.intervalsWh : Array(48).fill(0);
+        const suppressIntervals = Array.isArray(intervalDay.power?.samples) &&
+          intervalDay.power.samples.length && !hasChargingSamples(intervalDay.power);
+        const hourlyKWh = Array.from({ length: 24 }, (_, hour) => {
+          if (suppressIntervals) return 0;
+          return Math.max(0, Number(halfHours[hour * 2] || 0) + Number(halfHours[hour * 2 + 1] || 0)) / 1000;
+        });
         return new Response(JSON.stringify({
-          start: startDate, end: endDate, dates, dailyKWh: records, intervalDate, intervals,
-          updatedAt: powerRecord?.updatedAt || null
+          start: startDate, end: endDate, dates, dailyKWh, intervalDate, intervals: hourlyKWh,
+          updatedAt: intervalDay.daily?.updatedAt || intervalDay.power?.updatedAt || null
         }), { headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
       } catch (error) {
         return new Response(JSON.stringify({ error: "Could not read EV history", details: error.message }), {
@@ -942,41 +922,27 @@ export default {
         const d = londonDateParts();
         return d.year + "-" + String(d.month).padStart(2, "0") + "-" + String(d.day).padStart(2, "0");
       })();
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date + "T12:00:00Z"))) {
+      if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date) || !Number.isFinite(Date.parse(date + "T12:00:00Z"))) {
         return new Response(JSON.stringify({ error: "Invalid EV daily date" }), {
           status: 400, headers: { ...cors, "Content-Type": "application/json" }
         });
       }
       try {
-        // Use the same five-minute power samples as the half-hour chart.
-        // This avoids double-counting when Hypervolt starts a new session.
-        const raw = await env.ENERGY_DATA.get("power-daily:" + date);
-        const record = raw ? JSON.parse(raw) : null;
-        const samples = Array.isArray(record?.samples) ? record.samples : [];
-        const ordered = samples
-          .map(sample => ({ time: Date.parse(sample.time), power: Number(sample.toCar) }))
-          .filter(sample => Number.isFinite(sample.time) && Number.isFinite(sample.power) && sample.power >= 0)
-          .sort((a, b) => a.time - b.time);
-        let energyKWh = 0;
-        for (let i = 1; i < ordered.length; i++) {
-          const previous = ordered[i - 1], current = ordered[i];
-          const elapsedMs = current.time - previous.time;
-          if (elapsedMs <= 0 || elapsedMs > 10 * 60 * 1000) continue;
-          const midpoint = new Date(previous.time + elapsedMs / 2);
-          const parts = new Intl.DateTimeFormat("en-GB", {
-            timeZone: "Europe/London", year: "numeric", month: "2-digit",
-            day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23"
-          }).formatToParts(midpoint);
-          const get = type => parts.find(part => part.type === type).value;
-          const sampleDate = get("year") + "-" + get("month") + "-" + get("day");
-          if (sampleDate !== date) continue;
-          energyKWh += ((previous.power + current.power) / 2) * elapsedMs / 3600000;
-        }
+        const [dailyRaw, powerRaw] = await Promise.all([
+          env.ENERGY_DATA.get("ev-daily:" + date),
+          env.ENERGY_DATA.get("power-daily:" + date)
+        ]);
+        const daily = dailyRaw ? JSON.parse(dailyRaw) : null;
+        const power = powerRaw ? JSON.parse(powerRaw) : null;
+        const samples = Array.isArray(power?.samples) ? power.samples : [];
+        const hasCharging = samples.some(sample =>
+          Number.isFinite(Number(sample.toCar)) && Number(sample.toCar) > 0.05
+        );
+        const energyKWh = !daily || (samples.length > 0 && !hasCharging)
+          ? 0 : Math.max(0, Number(daily.energyWh || 0) / 1000);
         return new Response(JSON.stringify({
-          date,
-          evChargingKWh: Number(energyKWh.toFixed(3)),
-          samples: samples.length,
-          updatedAt: record?.updatedAt || null
+          date, evChargingKWh: Number(energyKWh.toFixed(3)),
+          samples: samples.length, updatedAt: daily?.updatedAt || power?.updatedAt || null
         }), { headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
       } catch (error) {
         return new Response(JSON.stringify({ error: "Could not read EV daily total", details: error.message }), {
