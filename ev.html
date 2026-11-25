@@ -187,7 +187,7 @@ async function loadIntervals(){
  try{
   const d=await getJSON("ev-history?start="+todayISO+"&end="+localISO(new Date(today.getFullYear(),today.getMonth(),today.getDate()+1,12))+"&intervalDate="+todayISO);
   drawInterval(d.intervals||Array(48).fill(0));
-  document.getElementById("intervalStatus").textContent="Today · "+today.toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})+" · readings collected every 5 minutes";
+  const dailyTotal=Number(d.dailyKWh?.[0]||0),hourlyTotal=(d.intervals||[]).reduce((sum,value)=>sum+Math.max(0,Number(value)||0),0),difference=Math.abs(dailyTotal-hourlyTotal);document.getElementById("intervalStatus").textContent="Today · "+today.toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})+" · session total "+dailyTotal.toFixed(2)+" kWh · hourly bars "+hourlyTotal.toFixed(2)+" kWh · "+(difference<=0.02?"MATCH":"DIFFERENCE "+difference.toFixed(2)+" kWh");
  }catch(e){document.getElementById("intervalStatus").textContent=e.message}
 }
 document.getElementById("dailyChart").addEventListener("click",e=>{const bar=e.target.closest("rect[data-value]");if(bar)showBarValue(e.currentTarget,bar)});
