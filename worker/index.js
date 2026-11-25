@@ -839,10 +839,22 @@ export default {
         const d = londonDateParts();
         return d.year + "-" + String(d.month).padStart(2, "0") + "-" + String(d.day).padStart(2, "0");
       })();
-      const validDate = value => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value + "T12:00:00Z"));
+      const validDate = value => {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(value || "")) return false;
+        const [year, month, day] = value.split("-").map(Number);
+        const check = new Date(Date.UTC(year, month - 1, day));
+        return check.getUTCFullYear() === year && check.getUTCMonth() === month - 1 && check.getUTCDate() === day;
+      };
+      const rangeDays = validDate(startDate) && validDate(endDate)
+        ? (Date.UTC(...endDate.split("-").map(Number).map((v, i) => i === 1 ? v - 1 : v)) -
+           Date.UTC(...startDate.split("-").map(Number).map((v, i) => i === 1 ? v - 1 : v))) / 86400000
+        : 0;
       if (!validDate(startDate) || !validDate(endDate) || !validDate(intervalDate) ||
-          endDate <= startDate || (Date.parse(endDate + "T12:00:00Z") - Date.parse(startDate + "T12:00:00Z")) / 86400000 > 367) {
-        return new Response(JSON.stringify({ error: "Invalid EV history date range" }), {
+          endDate <= startDate || rangeDays > 400) {
+        return new Response(JSON.stringify({
+          error: "Invalid EV history date range",
+          received: { start: startDate, end: endDate, intervalDate, rangeDays }
+        }), {
           status: 400, headers: { ...cors, "Content-Type": "application/json" }
         });
       }
