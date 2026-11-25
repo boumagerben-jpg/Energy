@@ -839,7 +839,7 @@ export default {
         const d = londonDateParts();
         return d.year + "-" + String(d.month).padStart(2, "0") + "-" + String(d.day).padStart(2, "0");
       })();
-      const validDate = value => /^\\d{4}-\\d{2}-\\d{2}$/.test(value) && Number.isFinite(Date.parse(value + "T12:00:00Z"));
+      const validDate = value => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value + "T12:00:00Z"));
       if (!validDate(startDate) || !validDate(endDate) || !validDate(intervalDate) ||
           endDate <= startDate || (Date.parse(endDate + "T12:00:00Z") - Date.parse(startDate + "T12:00:00Z")) / 86400000 > 367) {
         return new Response(JSON.stringify({ error: "Invalid EV history date range" }), {
@@ -922,7 +922,7 @@ export default {
         const d = londonDateParts();
         return d.year + "-" + String(d.month).padStart(2, "0") + "-" + String(d.day).padStart(2, "0");
       })();
-      if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date) || !Number.isFinite(Date.parse(date + "T12:00:00Z"))) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date + "T12:00:00Z"))) {
         return new Response(JSON.stringify({ error: "Invalid EV daily date" }), {
           status: 400, headers: { ...cors, "Content-Type": "application/json" }
         });
