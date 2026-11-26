@@ -149,11 +149,18 @@ const powerSeries=[
  {key:"toGrid",label:"To grid",color:"#22d3ee"}
 ];
 let powerSamples=[];
+function updateDailySolarGauge(){
+ const solar=Number(document.getElementById("d-v-solar").textContent);
+ if(!Number.isFinite(solar))return;
+ const others=["fromBattery","fromGrid","toCar","toBattery","toGrid"].map(k=>Number(document.getElementById("d-v-"+k).textContent)||0);
+ const maxTotal=Math.max(1,solar,...others);
+ document.getElementById("d-arc-solar").setAttribute("stroke-dasharray",(Math.min(88,solar/maxTotal*88)).toFixed(2)+" 100");
+}
 function renderDailyTotals(){
  const status=document.getElementById("daily-status");
- const keys=["solar","fromBattery","fromGrid","toCar","toBattery","toGrid"];
+ const keys=["fromBattery","fromGrid","toCar","toBattery","toGrid"];
  const totals=Object.fromEntries(keys.map(k=>[k,0]));
- if(!powerSamples.length){status.textContent="No readings recorded yet today.";return;}
+ if(!powerSamples.length){status.textContent="Waiting for daily solar report and recorded power samples.";return;}
  const midnight=new Date();midnight.setHours(0,0,0,0);
  const points=powerSamples.map(p=>({time:new Date(p.time).getTime(),sample:p})).filter(p=>Number.isFinite(p.time)).sort((a,b)=>a.time-b.time);
  let covered=0;
@@ -167,13 +174,27 @@ function renderDailyTotals(){
    totals[key]+=((av+bv)/2)*hours;
   }
  }
- const maxTotal=Math.max(1,...keys.map(k=>totals[k]));
+ const maxTotal=Math.max(1,...keys.map(k=>totals[k]),Number(document.getElementById("d-v-solar").textContent)||0);
  for(const key of keys){
   document.getElementById("d-v-"+key).textContent=totals[key].toFixed(2);
   const percent=Math.min(88,totals[key]/maxTotal*88);
   document.getElementById("d-arc-"+key).setAttribute("stroke-dasharray",percent.toFixed(2)+" 100");
  }
- status.textContent="Integrated from today's recorded power samples · "+(covered*60).toFixed(0)+" minutes covered";
+ updateDailySolarGauge();
+ status.textContent="Solar: Fox ESS daily report · Other totals: recorded power samples ("+(covered*60).toFixed(0)+" minutes covered)";
+}
+async function loadDailySolarTotal(){
+ try{
+  const p=await getPassword();
+  const res=await fetch(API+"daily",{headers:{"X-Dashboard-Password":p},cache:"no-store"});
+  const data=await res.json();
+  if(res.status===401){localStorage.removeItem("energyPassword");localStorage.removeItem("energyPasswordExpiry");password=null;throw new Error("Dashboard password incorrect.");}
+  if(!res.ok||data.solarKWh==null)throw new Error(data.details||data.error||"Fox ESS daily solar total unavailable.");
+  document.getElementById("d-v-solar").textContent=Number(data.solarKWh).toFixed(2);
+  updateDailySolarGauge();
+ }catch(e){
+  document.getElementById("daily-status").textContent="Solar daily report unavailable: "+e.message;
+ }
 }
 function renderPowerChart(){
  const svg=document.getElementById("power-chart"),status=document.getElementById("chart-status");
@@ -230,7 +251,7 @@ document.getElementById("offpeak-rate").value=tariffRates.off.toFixed(2);documen
 document.getElementById("submit-tariffs").addEventListener("click",applyTariffs);
 document.querySelectorAll("[data-period]").forEach(b=>b.addEventListener("click",()=>{selectedCostPeriod=b.dataset.period;const now=new Date();selectedCostDate=selectedCostPeriod==="week"?isoDate(mondayOf(now)):selectedCostPeriod==="month"?isoDate(new Date(now.getFullYear(),now.getMonth(),1)):isoDate(new Date(now.getFullYear(),0,1));document.querySelectorAll("[data-period]").forEach(x=>x.classList.toggle("active",x===b));renderCostPeriodPicker();loadTariffHistory(true)}));
 
-renderCostPeriodPicker();load().then(loadPowerHistory);setInterval(load,300000);setInterval(loadPowerHistory,300000);loadTariffHistory(true);setInterval(()=>loadTariffHistory(false),300000);
+renderCostPeriodPicker();load().then(loadPowerHistory);loadDailySolarTotal();setInterval(load,300000);setInterval(loadPowerHistory,300000);setInterval(loadDailySolarTotal,300000);loadTariffHistory(true);setInterval(()=>loadTariffHistory(false),300000);
 </script>
 </body>
 </html>
