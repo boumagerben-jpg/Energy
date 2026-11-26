@@ -393,8 +393,8 @@ function calculateEvEnergyFromPower(record) {
   for (let i = 1; i < samples.length; i++) {
     const a = samples[i - 1], b = samples[i];
     const duration = b.time - a.time;
-    // Ignore long gaps: interpolating across a missing period can invent energy.
-    if (duration <= 0 || duration > 30 * 60 * 1000) continue;
+    // Ignore very long gaps: interpolating across a missing period can invent energy.
+    if (duration <= 0 || duration > 90 * 60 * 1000) continue;
     let cursor = a.time;
     while (cursor < b.time) {
       const nextHour = Math.min(b.time, (Math.floor(cursor / 3600000) + 1) * 3600000);
