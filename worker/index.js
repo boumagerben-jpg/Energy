@@ -383,6 +383,38 @@ async function collectHypervoltDaily(env) {
 }
 
 
+function calculateEvEnergyFromPower(record) {
+  const samples = Array.isArray(record?.samples) ? record.samples
+    .filter(sample => Number.isFinite(Date.parse(sample.time)) && Number.isFinite(Number(sample.toCar)))
+    .map(sample => ({ time: Date.parse(sample.time), power: Math.max(0, Number(sample.toCar)) }))
+    .sort((a, b) => a.time - b.time) : [];
+  const hourlyWh = Array(24).fill(0);
+  let totalWh = 0;
+  for (let i = 1; i < samples.length; i++) {
+    const a = samples[i - 1], b = samples[i];
+    const duration = b.time - a.time;
+    // Ignore long gaps: interpolating across a missing period can invent energy.
+    if (duration <= 0 || duration > 30 * 60 * 1000) continue;
+    let cursor = a.time;
+    while (cursor < b.time) {
+      const nextHour = Math.min(b.time, (Math.floor(cursor / 3600000) + 1) * 3600000);
+      const fractionStart = (cursor - a.time) / duration;
+      const fractionEnd = (nextHour - a.time) / duration;
+      const pStart = a.power + (b.power - a.power) * fractionStart;
+      const pEnd = a.power + (b.power - a.power) * fractionEnd;
+      const wh = (pStart + pEnd) / 2 * ((nextHour - cursor) / 3600000) * 1000;
+      const hourParts = new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Europe/London", hour: "2-digit", hourCycle: "h23"
+      }).formatToParts(new Date(cursor + 1));
+      const hour = Number(hourParts.find(part => part.type === "hour").value);
+      hourlyWh[hour] += wh;
+      totalWh += wh;
+      cursor = nextHour;
+    }
+  }
+  return { totalKWh: totalWh / 1000, hourlyKWh: hourlyWh.map(value => value / 1000), sampleCount: samples.length };
+}
+
 function londonDateParts() {
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/London", year: "numeric", month: "2-digit", day: "2-digit"
@@ -896,24 +928,23 @@ export default {
           return { date, daily: dailyRaw ? JSON.parse(dailyRaw) : null, power: powerRaw ? JSON.parse(powerRaw) : null };
         };
         const storedDays = await Promise.all(dates.map(loadDay));
-        const hasChargingSamples = record =>
-          Array.isArray(record?.samples) &&
-          record.samples.some(sample => Number.isFinite(Number(sample.toCar)) && Number(sample.toCar) > 0.05);
-        const dailyKWh = storedDays.map(day => {
-          if (!day.daily) return 0;
-          const samples = day.power?.samples;
-          if (Array.isArray(samples) && samples.length && !hasChargingSamples(day.power)) return 0;
-          return Math.max(0, Number(day.daily.energyWh || 0) / 1000);
+        const calculatedDays = storedDays.map(day => ({
+          ...day, calculated: calculateEvEnergyFromPower(day.power)
+        }));
+        const dailyKWh = calculatedDays.map(day => {
+          // Rebuild history from timestamped charger-power samples when possible.
+          // This bypasses previously inflated EV daily counters in KV.
+          if (day.calculated.sampleCount >= 2) return Math.max(0, day.calculated.totalKWh);
+          return Math.max(0, Number(day.daily?.energyWh || 0) / 1000);
         });
-        const intervalDay = storedDays.find(day => day.date === intervalDate) || await loadDay(intervalDate);
-        const halfHours = Array.isArray(intervalDay.daily?.intervalsWh) && intervalDay.daily.intervalsWh.length === 48
-          ? intervalDay.daily.intervalsWh : Array(48).fill(0);
-        const suppressIntervals = Array.isArray(intervalDay.power?.samples) &&
-          intervalDay.power.samples.length && !hasChargingSamples(intervalDay.power);
-        const hourlyKWh = Array.from({ length: 24 }, (_, hour) => {
-          if (suppressIntervals) return 0;
-          return Math.max(0, Number(halfHours[hour * 2] || 0) + Number(halfHours[hour * 2 + 1] || 0)) / 1000;
-        });
+        const intervalDay = calculatedDays.find(day => day.date === intervalDate) || await loadDay(intervalDate);
+        const hourlyKWh = intervalDay.calculated?.sampleCount >= 2
+          ? intervalDay.calculated.hourlyKWh
+          : Array.from({ length: 24 }, (_, hour) => {
+              const halfHours = Array.isArray(intervalDay.daily?.intervalsWh) && intervalDay.daily.intervalsWh.length === 48
+                ? intervalDay.daily.intervalsWh : Array(48).fill(0);
+              return Math.max(0, Number(halfHours[hour * 2] || 0) + Number(halfHours[hour * 2 + 1] || 0)) / 1000;
+            });
         return new Response(JSON.stringify({
           start: startDate, end: endDate, dates, dailyKWh, intervalDate, intervals: hourlyKWh,
           updatedAt: intervalDay.daily?.updatedAt || intervalDay.power?.updatedAt || null
