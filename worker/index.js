@@ -321,8 +321,10 @@ async function collectHypervoltDaily(env) {
   let deltaWh = 0;
   if (previous && Number.isFinite(Number(previous.lastSessionEnergyWh))) {
     const previousWh = Number(previous.lastSessionEnergyWh);
-    const newSession = reading.charging === true && previous.lastCharging !== true;
-    if (newSession || currentWh < previousWh) {
+    // Session counters can reset between charges. Only treat a lower reading
+    // as a reset; a charging-state transition alone must never add the whole
+    // current counter again.
+    if (currentWh < previousWh) {
       deltaWh = currentWh;
     } else {
       deltaWh = currentWh - previousWh;
@@ -343,7 +345,30 @@ async function collectHypervoltDaily(env) {
   const hour = Number(timeParts.find(part => part.type === "hour").value);
   const minute = Number(timeParts.find(part => part.type === "minute").value);
   const intervalIndex = Math.min(47, Math.floor((hour * 60 + minute) / 30));
-  daily.intervalsWh[intervalIndex] += Math.max(0, deltaWh);
+  const energyDelta = Math.max(0, deltaWh);
+
+  // Spread the measured energy over the elapsed sampling period rather than
+  // placing the entire delta into the time of the latest poll. This prevents
+  // gaps or delayed updates from making several charging hours disappear.
+  const sampleStart = Date.parse(previous?.lastSampleAt || "");
+  const sampleEnd = now.getTime();
+  const elapsed = sampleEnd - sampleStart;
+  if (energyDelta > 0 && Number.isFinite(sampleStart) && elapsed > 0 && elapsed <= 6 * 60 * 60 * 1000) {
+    let cursor = sampleStart;
+    while (cursor < sampleEnd) {
+      const nextBoundary = Math.min(sampleEnd, (Math.floor(cursor / 1800000) + 1) * 1800000);
+      const parts = new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Europe/London", hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+      }).formatToParts(new Date(cursor + 1));
+      const h = Number(parts.find(part => part.type === "hour").value);
+      const m = Number(parts.find(part => part.type === "minute").value);
+      const idx = Math.min(47, Math.floor((h * 60 + m) / 30));
+      daily.intervalsWh[idx] += energyDelta * (nextBoundary - cursor) / elapsed;
+      cursor = nextBoundary;
+    }
+  } else {
+    daily.intervalsWh[intervalIndex] += energyDelta;
+  }
   daily.samples += 1;
   daily.updatedAt = now.toISOString();
   await env.ENERGY_DATA.put(dailyKey, JSON.stringify(daily));
